@@ -18,7 +18,7 @@ export const mockProducts: ProductInfo[] = [
     status: 'active',
     statusLabel: 'Ativo',
     ctaText: 'Abrir OrçaGraf',
-    url: 'https://orcagraf.prexyon.com',
+    url: import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://orcagraf.prexyon.com',
     theme: {
       primary: '#16a34a',
       light: '#22c55e',
