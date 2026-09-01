@@ -72,7 +72,7 @@ async function runStage6Tests() {
     // 4. Criar Plano e Assinatura com OrçaGraf + ArteFlow para Org A (sem ArteCheck)
     await client.query(`
       INSERT INTO public.prexyon_plans (id, code, name, description, included_users, monthly_price_cents, annual_price_cents, is_active)
-      VALUES ('${planId}', 'plano-duo-${ts}', 'Plano Duo Teste', 'Plano Duo de Testes Stage 6', 5, 9900, 99000, true);
+      VALUES ('${planId}', 'plano-duo-${ts}', 'Plano Duo Teste (Isolado)', 'Plano Duo de Testes Stage 6', 5, 9900, 99000, false);
     `);
 
     await client.query(`

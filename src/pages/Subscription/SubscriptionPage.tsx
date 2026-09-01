@@ -421,8 +421,14 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBack }) =>
                       </li>
                     </ul>
 
-                    <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-                      <span>Até {plan.includedUsers} usuários inclusos</span>
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-500">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                        <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{plan.includedUsers} usuários inclusos</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        Usuários adicionais: {formatCentsToBrl(plan.extraUserPriceCents)}/mês por usuário
+                      </p>
                     </div>
                   </div>
                 </div>
