@@ -1,0 +1,43 @@
+{
+  "name": "prexyon-portal",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "start": "vite preview --host 0.0.0.0 --port ${PORT:-5173}",
+    "lint": "tsc --noEmit",
+    "test": "tsx tests/run-stage2-tests.ts",
+    "test:real": "tsx tests/supabase-real-stage22.test.ts",
+    "test:sso": "tsx tests/sso-stage31.test.ts",
+    "test:homolog": "tsx tests/e2e-homologation-stage33.ts",
+    "test:subs": "tsx tests/subscriptions-stage41.test.ts",
+    "test:billing": "tsx tests/billing-stage42.test.ts",
+    "test:audit": "tsx tests/billing-audit-stage421.test.ts",
+    "test:billing-security": "tsx tests/billing-security-stage422.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.475.0",
+    "pg": "^8.13.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@types/pg": "^8.11.11",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0"
+  }
+}
