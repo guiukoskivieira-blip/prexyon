@@ -15,9 +15,9 @@ export const mockProducts: ProductInfo[] = [
     longDescription: 'Sistema completo para cálculo dinâmico de custos, formulação precisa de orçamentos gráficos, propostas comerciais e pedidos de venda.',
     logoSrc: orcagrafLogo,
     symbolSrc: orcagrafSymbol,
-    status: 'active',
-    statusLabel: 'Ativo',
-    ctaText: 'Abrir OrçaGraf',
+    status: 'inactive',
+    statusLabel: 'Não contratado',
+    ctaText: 'Assinar OrçaGraf',
     url: import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://or-agraf-bete-20-production.up.railway.app',
     theme: {
       primary: '#16a34a',
@@ -35,7 +35,7 @@ export const mockProducts: ProductInfo[] = [
       'Impressão e envio de PDF profissional',
       'Histórico de clientes e orçamentos'
     ],
-    isSubscribed: true
+    isSubscribed: false
   },
   {
     id: 'arteflow',
@@ -45,9 +45,9 @@ export const mockProducts: ProductInfo[] = [
     longDescription: 'Gestão visual do fluxo produtivo da fábrica com controle de etapas (Kanban), roteiros de acabamento, controle de entregas e financeiro integrado.',
     logoSrc: arteflowLogo,
     symbolSrc: arteflowSymbol,
-    status: 'active',
-    statusLabel: 'Ativo',
-    ctaText: 'Abrir ArteFlow',
+    status: 'inactive',
+    statusLabel: 'Não contratado',
+    ctaText: 'Assinar ArteFlow',
     url: 'https://arteflow.prexyon.com',
     theme: {
       primary: '#0284c7',
@@ -65,7 +65,7 @@ export const mockProducts: ProductInfo[] = [
       'Emissão de ordens de serviço (OS)',
       'Contas a pagar e receber'
     ],
-    isSubscribed: true
+    isSubscribed: false
   },
   {
     id: 'artecheck',
@@ -75,9 +75,9 @@ export const mockProducts: ProductInfo[] = [
     longDescription: 'Módulo inteligente de validação técnica de artes finais, detecção de erros de sangria, resolução de imagens, fontes em curvas e separação de cores.',
     logoSrc: artecheckLogo,
     symbolSrc: artecheckSymbol,
-    status: 'coming_soon',
-    statusLabel: 'Em breve',
-    ctaText: 'Conhecer produto',
+    status: 'inactive',
+    statusLabel: 'Não contratado',
+    ctaText: 'Assinar ArteCheck',
     url: 'https://artecheck.prexyon.com',
     theme: {
       primary: '#7c3aed',

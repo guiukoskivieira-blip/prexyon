@@ -35,26 +35,7 @@ export const organizationService = {
         .maybeSingle();
 
       if (memberError || !memberData || !memberData.organizations) {
-        // Se o usuário não tem vínculo direto em organization_members, tenta a primeira org disponível
-        const { data: orgData, error: orgError } = await (supabase.from('organizations') as any)
-          .select('*')
-          .limit(1)
-          .maybeSingle();
-
-        if (orgError || !orgData) {
-          return isDev ? mockOrganization : null;
-        }
-
-        return {
-          id: orgData.id,
-          name: orgData.trade_name || orgData.corporate_name || 'Organização',
-          tradeName: orgData.trade_name || 'Organização',
-          slug: orgData.slug || undefined,
-          document: orgData.document || undefined,
-          status: orgData.is_active ? 'active' : 'suspended',
-          createdAt: orgData.created_at,
-          updatedAt: orgData.updated_at,
-        };
+        return null;
       }
 
       const org = memberData.organizations;
@@ -69,7 +50,7 @@ export const organizationService = {
         updatedAt: org.updated_at,
       };
     } catch {
-      return isDev ? mockOrganization : null;
+      return null;
     }
   },
 
@@ -87,8 +68,8 @@ export const organizationService = {
       if (error || !data) {
         return isDev ? mockOrganization : {
           id: '',
-          name: 'Organização não encontrada',
-          tradeName: 'Organização não encontrada',
+          name: 'Nenhuma organização vinculada',
+          tradeName: 'Nenhuma organização vinculada',
           status: 'suspended',
           createdAt: '',
           updatedAt: '',
@@ -108,8 +89,8 @@ export const organizationService = {
     } catch {
       return isDev ? mockOrganization : {
         id: '',
-        name: 'Organização não encontrada',
-        tradeName: 'Organização não encontrada',
+        name: 'Nenhuma organização vinculada',
+        tradeName: 'Nenhuma organização vinculada',
         status: 'suspended',
         createdAt: '',
         updatedAt: '',

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, ExternalLink, ShieldCheck, Info, Sparkles, Loader2, AlertCircle } from 'lucide-react';
-import { ProductInfo, ProductStatus } from '../../types/product';
+import { MoreHorizontal, ExternalLink, ShieldCheck, Info, Loader2, AlertCircle } from 'lucide-react';
+import { ProductInfo } from '../../types/product';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -10,13 +10,15 @@ import { ssoService } from '../../services/ssoService';
 interface ProductCardProps {
   product: ProductInfo;
   onNavigateToPermissions?: (productId: string) => void;
+  onNavigateToSubscription?: () => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
-  onNavigateToPermissions
+  onNavigateToPermissions,
+  onNavigateToSubscription
 }) => {
-  const { updateProductStatus, organization, checkPermission } = useAuth();
+  const { organization, checkPermission } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isLaunchingSso, setIsLaunchingSso] = useState(false);
@@ -36,7 +38,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const handleLaunchProduct = async () => {
     setSsoErrorMessage(null);
 
-    // Verificação de permissão antes de iniciar
+    // Se o produto não estiver contratado/ativo, direciona para a página de contratação
+    if (!product.isSubscribed || product.status !== 'active') {
+      if (onNavigateToSubscription) {
+        onNavigateToSubscription();
+      } else {
+        setIsDetailsOpen(true);
+      }
+      return;
+    }
+
+    // Verificação rigorosa de permissão antes de emitir SSO
     const permCheck = checkPermission(product.id);
     if (!permCheck.allowed) {
       setSsoErrorMessage(permCheck.details || 'Acesso não autorizado ao software.');
@@ -66,6 +78,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   // Border and accent styling based on product
   const getProductAccent = () => {
+    if (!product.isSubscribed || product.status !== 'active') {
+      return {
+        topBorder: 'border-t-4 border-t-slate-300',
+        btnClass: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-2xs hover:border-[#0066ff] hover:text-[#0066ff]',
+        symbolBg: 'bg-slate-50 border-slate-200',
+      };
+    }
+
     switch (product.id) {
       case 'orcagraf':
         return {
@@ -83,9 +103,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       default:
         return {
           topBorder: 'border-t-4 border-t-[#7c3aed]',
-          btnClass: product.status === 'active'
-            ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white shadow-sm'
-            : 'bg-white hover:bg-purple-50/80 text-[#7c3aed] border border-[#d8b4fe] shadow-2xs',
+          btnClass: 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white shadow-sm',
           symbolBg: 'bg-purple-50/60 border-purple-100',
         };
     }
@@ -98,45 +116,45 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div
         className={`bg-white rounded-2xl border border-[#e2e8f0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-5 sm:p-6 flex flex-col justify-between transition-all duration-200 hover:shadow-[0_12px_28px_rgba(0,0,0,0.06)] hover:border-slate-300 ${accent.topBorder}`}
       >
-        {/* Top Product Header */}
         <div>
-          <div className="flex items-start justify-between gap-3">
-            {/* Logo Symbol + Info */}
-            <div className="flex items-center space-x-3.5">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center p-2 border ${accent.symbolBg} shrink-0`}>
-                <img
-                  src={product.symbolSrc}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  {product.name}
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 font-normal mt-0.5 leading-snug">
-                  {product.description}
-                </p>
-              </div>
+          {/* Card Top: Symbol + Badge */}
+          <div className="flex items-start justify-between">
+            <div className={`w-13 h-13 rounded-2xl flex items-center justify-center p-2.5 border ${accent.symbolBg}`}>
+              <img
+                src={product.symbolSrc}
+                alt={`${product.name} símbolo`}
+                className="w-full h-full object-contain"
+              />
             </div>
-
-            {/* Status Badge */}
-            <div className="shrink-0">
-              <Badge status={product.status} label={product.statusLabel} />
-            </div>
+            <Badge status={product.status} label={product.statusLabel} />
           </div>
 
-          {/* Inline SSO Error Notification */}
+          {/* Product Identification */}
+          <div className="mt-4">
+            <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              {product.name}
+            </h3>
+            <p className="text-xs font-semibold text-slate-600 mt-0.5">
+              {product.tagline}
+            </p>
+            <p className="mt-2.5 text-xs text-slate-500 leading-relaxed line-clamp-2">
+              {product.longDescription}
+            </p>
+          </div>
+
+          {/* SSO Error Banner if Launch Fails */}
           {ssoErrorMessage && (
-            <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{ssoErrorMessage}</span>
+            <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-semibold block">Acesso negado:</span>
+                <span>{ssoErrorMessage}</span>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Action Button Row */}
+        {/* Card Footer: Main CTA & Options Menu */}
         <div className="mt-6 pt-2 flex items-center gap-2.5">
           <button
             onClick={handleLaunchProduct}
@@ -192,43 +210,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
                   <span>Permissões de usuários</span>
                 </button>
-
-                {/* State switcher for demo reviewers */}
-                <div className="mt-1 pt-1 border-t border-slate-100 px-3 py-1">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Simular Estado:</span>
-                  <div className="grid grid-cols-2 gap-1 mt-1">
-                    {(['active', 'coming_soon', 'trial', 'suspended'] as ProductStatus[]).map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => {
-                          updateProductStatus(product.id, st);
-                          setIsMenuOpen(false);
-                        }}
-                        className={`text-[10px] px-1.5 py-1 rounded text-left transition-colors ${
-                          product.status === st ? 'bg-blue-100 text-blue-800 font-bold' : 'hover:bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Product Details Modal */}
+      {/* Module Overview / Modal */}
       <Modal
         isOpen={isDetailsOpen}
         onClose={() => setIsDetailsOpen(false)}
-        title={`${product.name} — Ecossistema Prexyon`}
-        maxWidth="lg"
+        title={product.name}
+        maxWidth="md"
       >
-        <div className="space-y-5">
-          <div className="flex items-center space-x-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center p-2.5 border ${accent.symbolBg} shrink-0`}>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center p-2 border ${accent.symbolBg}`}>
               <img
                 src={product.symbolSrc}
                 alt={product.name}
@@ -236,57 +233,46 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-lg font-bold text-slate-900">{product.name}</h4>
-                <Badge status={product.status} label={product.statusLabel} />
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">{product.tagline}</p>
+              <h4 className="text-base font-bold text-slate-900">{product.name}</h4>
+              <p className="text-xs text-slate-500">{product.tagline}</p>
             </div>
           </div>
 
-          <div>
-            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Sobre o Software</h5>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {product.longDescription}
-            </p>
-          </div>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            {product.longDescription}
+          </p>
 
           <div>
-            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Principais Recursos</h5>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
+            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+              Principais recursos inclusos
+            </h5>
+            <ul className="space-y-2">
               {product.features.map((feat, idx) => (
-                <li key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                  <Sparkles className="w-3.5 h-3.5 text-[#0066ff] shrink-0" />
+                <li key={idx} className="flex items-center text-xs text-slate-600 gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#0066ff]"></div>
                   <span>{feat}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <Button variant="secondary" onClick={() => setIsDetailsOpen(false)}>
-              Fechar
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+            <Badge status={product.status} label={product.statusLabel} />
+            <Button
+              variant={product.isSubscribed && product.status === 'active' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setIsDetailsOpen(false);
+                if (product.isSubscribed && product.status === 'active') {
+                  handleLaunchProduct();
+                } else if (onNavigateToSubscription) {
+                  onNavigateToSubscription();
+                }
+              }}
+              rightIcon={product.isSubscribed && product.status === 'active' ? <ExternalLink className="w-3.5 h-3.5" /> : undefined}
+            >
+              {product.isSubscribed && product.status === 'active' ? `Abrir ${product.name}` : `Contratar plano`}
             </Button>
-            {product.status === 'active' || product.status === 'trial' ? (
-              <Button
-                variant={product.id as any}
-                onClick={handleLaunchProduct}
-                isLoading={isLaunchingSso}
-                rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
-              >
-                {product.ctaText}
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                onClick={() => {
-                  alert(`Abertura de interesse no ${product.name} registrada para sua conta.`);
-                  setIsDetailsOpen(false);
-                }}
-              >
-                Solicitar Demonstração
-              </Button>
-            )}
           </div>
         </div>
       </Modal>

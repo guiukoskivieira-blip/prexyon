@@ -37,6 +37,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               key={product.id}
               product={product}
               onNavigateToPermissions={() => onNavigate('/app/permissoes')}
+              onNavigateToSubscription={() => onNavigate('/app/assinatura')}
             />
           ))}
         </div>

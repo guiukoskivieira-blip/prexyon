@@ -15,11 +15,11 @@ import { can, PermissionCheckResult, PermissionEngineContext } from '../services
 
 const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
 
-const defaultEmptyOrg: Organization = {
+const noOrgState: Organization = {
   id: '',
-  name: 'Carregando organização...',
-  tradeName: 'Carregando organização...',
-  status: 'active',
+  name: 'Nenhuma organização vinculada',
+  tradeName: 'Nenhuma organização vinculada',
+  status: 'suspended',
   createdAt: '',
   updatedAt: '',
 };
@@ -50,7 +50,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [organization, setOrganization] = useState<Organization>(isSupabaseConfigured() ? defaultEmptyOrg : (isDev ? mockOrganization : defaultEmptyOrg));
+  const [organization, setOrganization] = useState<Organization>(isSupabaseConfigured() ? noOrgState : (isDev ? mockOrganization : noOrgState));
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(isSupabaseConfigured() ? null : (isDev ? mockSubscription : null));
   const [products, setProducts] = useState<ProductInfo[]>(mockProducts);
   const [members, setMembers] = useState<AccountMember[]>(isSupabaseConfigured() ? [] : (isDev ? mockMembers : []));
@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         organizationService.getUserOrganization(userId),
       ]);
 
-      const effectiveOrg = org || defaultEmptyOrg;
+      const effectiveOrg = org || noOrgState;
       setOrganization(effectiveOrg);
 
       const authUser: AuthUser = {
@@ -127,9 +127,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             },
           ]);
         }
+      } else {
+        // Usuário sem organização: garante isolamento fail-closed estrito
+        setSubscription(null);
+        syncProductsWithSubscription(null);
+        setMembers([]);
       }
     } catch (err) {
       console.error('Erro ao carregar dados do usuário:', err);
+      setOrganization(noOrgState);
+      setSubscription(null);
+      syncProductsWithSubscription(null);
     }
   }, [syncProductsWithSubscription]);
 
@@ -191,7 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('prexyon_demo_auth', 'true');
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
-          setOrganization(defaultEmptyOrg);
+          setOrganization(noOrgState);
           setSubscription(null);
           setMembers([]);
           syncProductsWithSubscription(null);
@@ -274,7 +282,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     setUser(null);
-    setOrganization(defaultEmptyOrg);
+    setOrganization(noOrgState);
     setSubscription(null);
     setMembers([]);
     syncProductsWithSubscription(null);
