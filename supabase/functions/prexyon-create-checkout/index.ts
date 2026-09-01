@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const ALLOWED_ORIGINS = [
   'https://prexyon-production.up.railway.app',
+  'https://or-agraf-bete-20-production.up.railway.app',
   'https://portal.prexyon.com',
   'https://orcagraf.prexyon.com',
   'http://localhost:5173',

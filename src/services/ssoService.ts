@@ -1,13 +1,14 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ProductId } from '../types/product';
 
-const ORCAGRAF_PROD_URL = import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://orcagraf.prexyon.com';
+const ORCAGRAF_PROD_URL = import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://or-agraf-bete-20-production.up.railway.app';
 
 const ALLOWLIST_REDIRECTS = [
-  'https://orcagraf.prexyon.com/auth/prexyon',
+  'https://or-agraf-bete-20-production.up.railway.app/auth/prexyon',
   'http://localhost:5173/auth/prexyon',
   'http://localhost:3000/auth/prexyon',
   'http://localhost:5174/auth/prexyon',
+  'https://orcagraf.prexyon.com/auth/prexyon',
   ...(ORCAGRAF_PROD_URL ? [`${ORCAGRAF_PROD_URL}/auth/prexyon`] : []),
 ];
 

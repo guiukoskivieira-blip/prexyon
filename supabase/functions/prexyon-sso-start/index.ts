@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const ALLOWED_ORIGINS = [
   'https://prexyon-production.up.railway.app',
+  'https://or-agraf-bete-20-production.up.railway.app',
   'http://localhost:5173',
   'http://localhost:3000',
   'https://portal.prexyon.com',
@@ -10,6 +11,7 @@ const ALLOWED_ORIGINS = [
 ];
 
 const ORCAGRAF_ALLOWLIST_REDIRECTS = [
+  'https://or-agraf-bete-20-production.up.railway.app/auth/prexyon',
   'http://localhost:5173/auth/prexyon',
   'http://localhost:3000/auth/prexyon',
   'https://orcagraf.prexyon.com/auth/prexyon',
