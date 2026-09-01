@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { PrexyonPlan, SubscriptionDetails, SubscriptionPlanCode, SubscriptionBillingCycle } from '../types/subscription';
+import { PrexyonPlan, SubscriptionDetails, SubscriptionPlanCode, SubscriptionBillingCycle, SubscriptionStatus } from '../types/subscription';
 import { ProductId } from '../types/product';
+import { mockSubscription } from '../data/mockSubscription';
 
 const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
 
@@ -132,46 +133,9 @@ export const subscriptionService = {
     }
   },
 
-  async fetchOrganizationSubscription(organizationId: string): Promise<SubscriptionDetails> {
-    const inactiveState: SubscriptionDetails = {
-      planId: '',
-      planCode: 'orcagraf',
-      planName: 'Nenhum plano ativo',
-      status: 'inactive',
-      statusLabel: 'Inativo',
-      billingCycle: 'monthly',
-      monthlyPriceCents: 0,
-      annualPriceCents: 0,
-      priceFormatted: 'R$ 0,00',
-      nextRenewalFormatted: '—',
-      nextRenewalDate: '',
-      cancelAtPeriodEnd: false,
-      includedProducts: [
-        { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: false, status: 'inactive' },
-        { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
-        { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
-      ],
-      userSeats: {
-        total: 3,
-        used: 1,
-        extra: 0,
-        extraUserPriceCents: 1290,
-      },
-    };
-
+  async fetchOrganizationSubscription(organizationId: string): Promise<SubscriptionDetails | null> {
     if (!isSupabaseConfigured()) {
-      return isDev ? {
-        ...inactiveState,
-        planId: OFFICIAL_PLANS_FALLBACK[0].id,
-        planName: OFFICIAL_PLANS_FALLBACK[0].name,
-        status: 'active',
-        statusLabel: 'Ativo',
-        includedProducts: [
-          { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: true, status: 'active' },
-          { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
-          { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
-        ],
-      } : inactiveState;
+      return isDev ? mockSubscription : null;
     }
 
     try {
@@ -180,21 +144,31 @@ export const subscriptionService = {
       });
 
       if (error || !data || !data.has_subscription) {
-        return inactiveState;
+        return null;
       }
 
       const includedProds: ProductId[] = data.included_products || [];
       const currentPriceCents = data.billing_interval === 'annual' ? data.annual_price_cents : data.monthly_price_cents;
+      const status: SubscriptionStatus = data.status || 'active';
+
+      const statusLabels: Record<SubscriptionStatus, string> = {
+        active: 'Ativo',
+        trialing: 'Período de Teste',
+        past_due: 'Fatura Pendente',
+        canceled: 'Cancelado',
+        expired: 'Expirado',
+        suspended: 'Suspenso',
+      };
 
       return {
         planId: data.plan_id,
         planCode: data.plan_code as SubscriptionPlanCode,
         planName: data.plan_name,
-        status: data.status,
-        statusLabel: data.status === 'active' ? 'Ativo' : data.status === 'trialing' ? 'Período de Teste' : 'Cancelado',
-        billingCycle: data.billing_interval as SubscriptionBillingCycle,
-        monthlyPriceCents: data.monthly_price_cents,
-        annualPriceCents: data.annual_price_cents,
+        status: status,
+        statusLabel: statusLabels[status] || 'Ativo',
+        billingCycle: (data.billing_interval || 'monthly') as SubscriptionBillingCycle,
+        monthlyPriceCents: data.monthly_price_cents || 0,
+        annualPriceCents: data.annual_price_cents || 0,
         priceFormatted: `${formatCentsToBrl(currentPriceCents)}/${data.billing_interval === 'annual' ? 'ano' : 'mês'}`,
         nextRenewalFormatted: data.current_period_end ? new Date(data.current_period_end).toLocaleDateString('pt-BR', {
           day: '2-digit',
@@ -232,7 +206,7 @@ export const subscriptionService = {
         },
       };
     } catch {
-      return inactiveState;
+      return null;
     }
   },
 };

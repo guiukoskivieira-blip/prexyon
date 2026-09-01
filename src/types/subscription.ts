@@ -15,8 +15,7 @@ export type SubscriptionStatus =
   | 'past_due'
   | 'canceled'
   | 'expired'
-  | 'suspended'
-  | 'inactive';
+  | 'suspended';
 
 export interface PrexyonPlan {
   id: string;

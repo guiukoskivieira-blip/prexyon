@@ -48,7 +48,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBack }) =>
         if (organization?.id) {
           const subDetails = await subscriptionService.fetchOrganizationSubscription(organization.id);
           setDetails(subDetails);
-          setSelectedCycle(subDetails.billingCycle);
+          if (subDetails) {
+            setSelectedCycle(subDetails.billingCycle);
+          }
 
           const txs = await billingService.fetchBillingTransactions(organization.id);
           setTransactions(txs);
@@ -245,6 +247,19 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBack }) =>
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* No Active Plan State */}
+      {!details && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm text-center">
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-50 text-[#0066ff] flex items-center justify-center mb-3">
+            <Zap className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">Nenhum plano contratado</h2>
+          <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+            Sua organização ainda não possui uma assinatura ativa. Escolha um dos planos oficiais abaixo para liberar o acesso aos softwares.
+          </p>
         </div>
       )}
 

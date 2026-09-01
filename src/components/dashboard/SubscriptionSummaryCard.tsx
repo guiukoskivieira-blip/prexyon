@@ -15,7 +15,7 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
   onViewSubscription
 }) => {
   const { subscription } = useAuth();
-  const includedProducts = subscription.includedProducts.filter((p) => p.includedInPlan);
+  const includedProducts = subscription ? subscription.includedProducts.filter((p) => p.includedInPlan) : [];
 
   const getSymbol = (id: string) => {
     switch (id) {
@@ -47,10 +47,14 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
         {/* Column 1: Plan & Status */}
         <div>
           <h4 className="text-lg font-bold text-slate-900 tracking-tight">
-            {subscription.planName}
+            {subscription ? subscription.planName : 'Sem assinatura ativa'}
           </h4>
           <div className="mt-2">
-            <Badge status={subscription.status} label={subscription.statusLabel} />
+            {subscription ? (
+              <Badge status={subscription.status} label={subscription.statusLabel} />
+            ) : (
+              <Badge status="inactive" label="Não contratado" />
+            )}
           </div>
         </div>
 
@@ -86,7 +90,7 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
             <div className="text-left">
               <span className="block text-[11px] text-slate-400 font-medium">Próxima renovação</span>
               <span className="text-xs sm:text-sm font-bold text-slate-900">
-                {subscription.nextRenewalFormatted}
+                {subscription ? subscription.nextRenewalFormatted : '—'}
               </span>
             </div>
           </div>

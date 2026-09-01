@@ -24,36 +24,10 @@ const defaultEmptyOrg: Organization = {
   updatedAt: '',
 };
 
-const defaultEmptySubscription: SubscriptionDetails = {
-  planId: '',
-  planCode: 'orcagraf',
-  planName: 'Sem assinatura ativa',
-  status: 'inactive',
-  statusLabel: 'Inativo',
-  billingCycle: 'monthly',
-  monthlyPriceCents: 0,
-  annualPriceCents: 0,
-  priceFormatted: 'R$ 0,00',
-  nextRenewalFormatted: '—',
-  nextRenewalDate: '',
-  cancelAtPeriodEnd: false,
-  includedProducts: [
-    { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: false, status: 'inactive' },
-    { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
-    { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
-  ],
-  userSeats: {
-    total: 3,
-    used: 1,
-    extra: 0,
-    extraUserPriceCents: 1290,
-  },
-};
-
 interface AuthContextType {
   user: AuthUser | null;
   organization: Organization;
-  subscription: SubscriptionDetails;
+  subscription: SubscriptionDetails | null;
   products: ProductInfo[];
   members: AccountMember[];
   invites: InviteRecord[];
@@ -77,7 +51,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [organization, setOrganization] = useState<Organization>(isSupabaseConfigured() ? defaultEmptyOrg : (isDev ? mockOrganization : defaultEmptyOrg));
-  const [subscription, setSubscription] = useState<SubscriptionDetails>(isSupabaseConfigured() ? defaultEmptySubscription : (isDev ? mockSubscription : defaultEmptySubscription));
+  const [subscription, setSubscription] = useState<SubscriptionDetails | null>(isSupabaseConfigured() ? null : (isDev ? mockSubscription : null));
   const [products, setProducts] = useState<ProductInfo[]>(mockProducts);
   const [members, setMembers] = useState<AccountMember[]>(isSupabaseConfigured() ? [] : (isDev ? mockMembers : []));
   const [invites, setInvites] = useState<InviteRecord[]>([]);
@@ -86,11 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isBackendConnected = isSupabaseConfigured();
 
   // Helper para sincronizar status dos produtos com a assinatura real
-  const syncProductsWithSubscription = useCallback((sub: SubscriptionDetails) => {
+  const syncProductsWithSubscription = useCallback((sub: SubscriptionDetails | null) => {
     setProducts((prev) =>
       prev.map((prod) => {
-        const subProd = sub.includedProducts.find((p) => p.id === prod.id);
-        const isSubscribed = Boolean(subProd?.includedInPlan && (sub.status === 'active' || sub.status === 'trialing'));
+        const subProd = sub?.includedProducts.find((p) => p.id === prod.id);
+        const isSubscribed = Boolean(subProd?.includedInPlan && (sub?.status === 'active' || sub?.status === 'trialing'));
         return {
           ...prod,
           status: isSubscribed ? ('active' as ProductStatus) : ('inactive' as ProductStatus),
@@ -148,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               initials: authUser.initials,
               role: 'owner',
               status: 'active',
-              assignedProducts: sub.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId),
+              assignedProducts: sub ? sub.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId) : [],
               createdAt: new Date().toISOString(),
             },
           ]);
@@ -218,9 +192,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setOrganization(defaultEmptyOrg);
-          setSubscription(defaultEmptySubscription);
+          setSubscription(null);
           setMembers([]);
-          syncProductsWithSubscription(defaultEmptySubscription);
+          syncProductsWithSubscription(null);
           localStorage.removeItem('prexyon_demo_auth');
         }
       });
@@ -301,9 +275,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(null);
     setOrganization(defaultEmptyOrg);
-    setSubscription(defaultEmptySubscription);
+    setSubscription(null);
     setMembers([]);
-    syncProductsWithSubscription(defaultEmptySubscription);
+    syncProductsWithSubscription(null);
     localStorage.removeItem('prexyon_demo_auth');
     setIsLoading(false);
   };
@@ -451,7 +425,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         initials: user?.initials || 'US',
         role: (user?.role || 'owner') as any,
         status: 'active',
-        assignedProducts: subscription.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId),
+        assignedProducts: subscription ? subscription.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId) : [],
         createdAt: new Date().toISOString(),
       };
 

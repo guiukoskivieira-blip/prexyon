@@ -29,7 +29,7 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack, onNavigateToPermis
 
   // Products available in the organization subscription
   const isProductInPlan = (prodId: ProductId) => {
-    const subProd = subscription.includedProducts.find((p) => p.id === prodId);
+    const subProd = subscription?.includedProducts.find((p) => p.id === prodId);
     return subProd ? subProd.includedInPlan : false;
   };
 
