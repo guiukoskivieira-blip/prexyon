@@ -107,7 +107,25 @@ BEGIN
   )
   RETURNING id INTO v_org_id;
 
-  -- 6. Inserir Membership como OWNER
+  -- 6. Atualizar / Inserir Profile do Usuário (garante integridade referencial antes de organization_members)
+  INSERT INTO public.profiles (
+    id,
+    full_name,
+    email,
+    created_at,
+    updated_at
+  ) VALUES (
+    v_user_id,
+    COALESCE(v_clean_full_name, v_user_email),
+    v_user_email,
+    now(),
+    now()
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+    updated_at = now();
+
+  -- 7. Inserir Membership como OWNER
   INSERT INTO public.organization_members (
     organization_id,
     user_id,
@@ -125,26 +143,6 @@ BEGIN
     now(),
     now()
   );
-
-  -- 7. Atualizar / Inserir Profile do Usuário
-  IF v_clean_full_name IS NOT NULL THEN
-    INSERT INTO public.profiles (
-      id,
-      full_name,
-      email,
-      created_at,
-      updated_at
-    ) VALUES (
-      v_user_id,
-      v_clean_full_name,
-      v_user_email,
-      now(),
-      now()
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      full_name = EXCLUDED.full_name,
-      updated_at = now();
-  END IF;
 
   -- 8. Retornar dados da organização criada
   SELECT jsonb_build_object(

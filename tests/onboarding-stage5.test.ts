@@ -39,7 +39,7 @@ async function runOnboardingTests() {
 
   try {
     // 0. Setup
-    await client.query('DELETE FROM public.organization_members WHERE user_id = $1;', [testUserId]);
+    await client.query('DELETE FROM public.organizations WHERE id IN (SELECT organization_id FROM public.organization_members WHERE user_id = $1);', [testUserId]);
     await client.query('DELETE FROM public.profiles WHERE id = $1;', [testUserId]);
     await client.query('DELETE FROM auth.users WHERE id = $1;', [testUserId]);
 
@@ -107,8 +107,8 @@ async function runOnboardingTests() {
     assert(persistCheck.rowCount > 0, 'Teste H: Usuário com organização não é enviado para onboarding', 'true', 'true');
 
     // Teste I: Sem assinatura e sem produtos
-    const ent = await client.query('SELECT * FROM public.prexyon_get_organization_entitlements($1);', [createdOrgId]);
-    const subData = ent.rows[0];
+    const ent = await client.query('SELECT public.prexyon_get_organization_entitlements($1) as data;', [createdOrgId]);
+    const subData = ent.rows[0]?.data;
     assert(subData && subData.has_subscription === false && (!subData.included_products || subData.included_products.length === 0), 'Teste I: Organização recém-criada permanece SEM assinatura e SEM produtos liberados', 'has_subscription=false', `${subData?.has_subscription}`);
 
     // Teste J: SSO bloqueado 403
@@ -121,7 +121,7 @@ async function runOnboardingTests() {
     assert(ssoRejected, 'Teste J: Tentativa de SSO sem assinatura é rejeitada no backend com 403', 'Bloqueado', ssoRejected ? 'Bloqueado' : 'Permitiu');
 
     // Teste K: Transações = 0
-    const tx = await client.query('SELECT count(*) as count FROM public.prexyon_billing_transactions WHERE organization_id = $1;', [createdOrgId]);
+    const tx = await client.query('SELECT count(*) as count FROM public.prexyon_payment_transactions WHERE organization_id = $1;', [createdOrgId]);
     assert(parseInt(tx.rows[0].count, 10) === 0, 'Teste K: Nenhuma cobrança financeira ou transação foi criada', '0', tx.rows[0].count);
 
     // Teste L: Isolamento Cross-Tenant
@@ -130,7 +130,6 @@ async function runOnboardingTests() {
 
     // Cleanup
     if (createdOrgId) {
-      await client.query('DELETE FROM public.organization_members WHERE organization_id = $1;', [createdOrgId]);
       await client.query('DELETE FROM public.organizations WHERE id = $1;', [createdOrgId]);
     }
     await client.query('DELETE FROM public.profiles WHERE id = $1;', [testUserId]);
@@ -144,9 +143,9 @@ async function runOnboardingTests() {
   } finally {
     await client.end();
     if (failed > 0) {
-      process.exit(1);
+      process.exitCode = 1;
     } else {
-      process.exit(0);
+      process.exitCode = 0;
     }
   }
 }

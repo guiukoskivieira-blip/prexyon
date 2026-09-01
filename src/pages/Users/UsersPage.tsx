@@ -1,431 +1,795 @@
-import React, { useState } from 'react';
-import { ArrowLeft, UserPlus, Shield, Mail, AlertCircle, CheckCircle2, UserX, UserCheck, Settings, Lock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  UserPlus,
+  Shield,
+  Mail,
+  AlertCircle,
+  CheckCircle2,
+  UserX,
+  UserCheck,
+  Settings,
+  Lock,
+  X,
+  Save,
+  Sparkles,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { AccountMember } from '../../types/account';
 import { ProductId } from '../../types/product';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import {
+  memberManagementService,
+  MemberDetail,
+  OrganizationRole,
+} from '../../services/memberManagementService';
+import { PERMISSIONS_MATRIX } from '../../constants/permissionsMatrix';
+
 import orcagrafSymbol from '../../assets/branding/orcagraf-symbol.png';
 import arteflowSymbol from '../../assets/branding/arteflow-symbol.png';
 import artecheckSymbol from '../../assets/branding/artecheck-symbol.png';
 
 interface UsersPageProps {
-  onBack: () => void;
-  onNavigateToPermissions: (productId?: string) => void;
+  onBack?: () => void;
+  onNavigateToPermissions?: (prodId: any) => void;
 }
 
-export const UsersPage: React.FC<UsersPageProps> = ({ onBack, onNavigateToPermissions }) => {
-  const { members, subscription, inviteUser, toggleMemberStatus } = useAuth();
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<AccountMember | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'guest'>('member');
-  const [selectedProducts, setSelectedProducts] = useState<ProductId[]>(['orcagraf']);
+export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigateToPermissions: _onNavigateToPermissions }) => {
+  const { organization, subscription, user: currentUser } = useAuth();
+
+  const [members, setMembers] = useState<MemberDetail[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Products available in the organization subscription
-  const isProductInPlan = (prodId: ProductId) => {
-    const subProd = subscription?.includedProducts.find((p) => p.id === prodId);
+  // Invite modal state
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
+  const [inviteProducts, setInviteProducts] = useState<ProductId[]>(['orcagraf']);
+  const [isInviting, setIsInviting] = useState(false);
+
+  // Edit Drawer state
+  const [editingMember, setEditingMember] = useState<MemberDetail | null>(null);
+  const [editRole, setEditRole] = useState<OrganizationRole>('member');
+  const [editProducts, setEditProducts] = useState<ProductId[]>([]);
+  const [editPermissions, setEditPermissions] = useState<Record<string, Record<string, boolean>>>({});
+  const [activeProductTab, setActiveProductTab] = useState<'orcagraf' | 'arteflow' | 'artecheck'>('orcagraf');
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+
+  // Check if organization has subscription entitlement for a product
+  const orgHasEntitlement = useCallback((prodId: ProductId) => {
+    if (!subscription) return false;
+    const subProd = subscription.includedProducts.find((p) => p.id === prodId);
     return subProd ? subProd.includedInPlan : false;
-  };
+  }, [subscription]);
 
+  // Load real members
+  const fetchMembers = useCallback(async () => {
+    if (!organization?.id) return;
+    setIsLoading(true);
+    const res = await memberManagementService.getMembers(organization.id);
+    setIsLoading(false);
+    if (res.success) {
+      setMembers(res.data);
+    } else {
+      setActionError(res.error || 'Erro ao carregar lista de membros.');
+    }
+  }, [organization?.id]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  // Handle Invite
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    setActionError(null);
-    setIsSubmitting(true);
+    if (!organization?.id) return;
 
-    const res = await inviteUser(inviteEmail, selectedProducts, inviteRole);
-    setIsSubmitting(false);
+    setActionError(null);
+    setIsInviting(true);
+
+    const res = await memberManagementService.inviteUser({
+      organizationId: organization.id,
+      email: inviteEmail,
+      role: inviteRole,
+      productAccess: inviteProducts,
+    });
+
+    setIsInviting(false);
 
     if (res.success) {
-      setActionSuccess(`Convite enviado com sucesso para ${inviteEmail}!`);
+      setActionSuccess(`Convite gerado com sucesso para ${inviteEmail}!`);
       setIsInviteModalOpen(false);
       setInviteEmail('');
-      setSelectedProducts(['orcagraf']);
+      setInviteProducts(['orcagraf']);
+      fetchMembers();
+      setTimeout(() => setActionSuccess(null), 5000);
+    } else {
+      setActionError(res.error || 'Erro ao convidar usuário.');
+    }
+  };
+
+  // Open Drawer to edit
+  const handleOpenEdit = (member: MemberDetail) => {
+    setEditingMember(member);
+    setEditRole(member.role);
+    setEditProducts([...member.products]);
+    setEditPermissions(JSON.parse(JSON.stringify(member.permissions || {})));
+    // Pick first entitled product as active tab
+    if (member.products.length > 0) {
+      setActiveProductTab(member.products[0] as 'orcagraf' | 'arteflow' | 'artecheck');
+    } else {
+      setActiveProductTab('orcagraf');
+    }
+  };
+
+  // Toggle Member Status
+  const handleToggleStatus = async (member: MemberDetail) => {
+    if (!organization?.id) return;
+    setActionError(null);
+
+    const newStatus = !member.isActive;
+    const res = await memberManagementService.updateStatus(organization.id, member.userId, newStatus);
+
+    if (res.success) {
+      setActionSuccess(`Status de ${member.fullName || member.email} atualizado com sucesso.`);
+      fetchMembers();
       setTimeout(() => setActionSuccess(null), 4000);
     } else {
-      setActionError(res.error || 'Erro ao enviar convite.');
+      setActionError(res.error || 'Erro ao alterar status do membro.');
     }
   };
 
-  const handleToggleStatus = async (member: AccountMember) => {
+  // Apply Preset in Edit Drawer
+  const handleApplyPreset = (productId: 'orcagraf' | 'arteflow' | 'artecheck', presetId: string) => {
+    const schema = PERMISSIONS_MATRIX[productId];
+    const preset = schema.presets.find((p) => p.id === presetId);
+    if (!preset) return;
+
+    setEditPermissions((prev) => {
+      const currentProdPerms: Record<string, boolean> = {};
+      // Set all to false first
+      schema.categories.forEach((cat) => {
+        cat.permissions.forEach((perm) => {
+          currentProdPerms[perm.key] = false;
+        });
+      });
+      // Grant preset permissions
+      preset.permissions.forEach((pKey) => {
+        currentProdPerms[pKey] = true;
+      });
+
+      return {
+        ...prev,
+        [productId]: currentProdPerms,
+      };
+    });
+  };
+
+  // Toggle single permission switch
+  const handleTogglePermission = (productId: string, permKey: string) => {
+    setEditPermissions((prev) => {
+      const prodPerms = { ...(prev[productId] || {}) };
+      prodPerms[permKey] = !prodPerms[permKey];
+      return {
+        ...prev,
+        [productId]: prodPerms,
+      };
+    });
+  };
+
+  // Save all permissions and role in Edit Drawer
+  const handleSaveMemberChanges = async () => {
+    if (!organization?.id || !editingMember) return;
+
+    setIsSavingPermissions(true);
     setActionError(null);
-    const newStatus = member.status === 'active' ? 'suspended' : 'active';
-    const res = await toggleMemberStatus(member.id, newStatus);
-    if (!res.success) {
-      setActionError(res.error || 'Não foi possível alterar o status do membro.');
-      setTimeout(() => setActionError(null), 5000);
+
+    // 1. Role update if changed
+    if (editRole !== editingMember.role) {
+      const roleRes = await memberManagementService.updateRole(organization.id, editingMember.userId, editRole);
+      if (!roleRes.success) {
+        setIsSavingPermissions(false);
+        setActionError(roleRes.error || 'Erro ao atualizar papel do usuário.');
+        return;
+      }
+    }
+
+    // 2. Access and permissions update
+    const accessRes = await memberManagementService.updateAccessAndPermissions(
+      organization.id,
+      editingMember.userId,
+      editProducts,
+      editPermissions
+    );
+
+    setIsSavingPermissions(false);
+
+    if (accessRes.success) {
+      setActionSuccess(`Permissões de ${editingMember.fullName || editingMember.email} salvas com sucesso.`);
+      setEditingMember(null);
+      fetchMembers();
+      setTimeout(() => setActionSuccess(null), 4000);
     } else {
-      setActionSuccess(`Status de ${member.name} alterado para ${newStatus === 'active' ? 'Ativo' : 'Suspenso'}.`);
-      setTimeout(() => setActionSuccess(null), 3000);
+      setActionError(accessRes.error || 'Erro ao salvar acessos e permissões.');
     }
   };
 
-  const toggleProductForInvite = (prodId: ProductId) => {
-    if (!isProductInPlan(prodId)) return;
-    setSelectedProducts((prev) =>
-      prev.includes(prodId) ? prev.filter((p) => p !== prodId) : [...prev, prodId]
-    );
+  const productIcons: Record<string, string> = {
+    orcagraf: orcagrafSymbol,
+    arteflow: arteflowSymbol,
+    artecheck: artecheckSymbol,
   };
 
-  const handleSaveMemberAccess = (e: React.FormEvent) => {
-    e.preventDefault();
-    setEditingMember(null);
-    setActionSuccess('Acessos do usuário atualizados com sucesso.');
-    setTimeout(() => setActionSuccess(null), 3000);
-  };
+  const isCurrentActorAdminOrOwner =
+    members.find((m) => m.userId === currentUser?.id)?.role === 'owner' ||
+    members.find((m) => m.userId === currentUser?.id)?.role === 'admin';
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-150">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
-            aria-label="Voltar para Dashboard"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Usuários & Acessos
-            </h1>
-            <p className="text-sm text-slate-500">
-              Controle de membros, permissões granulares e produtos autorizados.
-            </p>
-          </div>
+    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+            <Shield className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
+            Usuários e Permissões
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Gerencie o time da sua organização e controle o acesso granular ao OrçaGraf, ArteFlow e ArteCheck.
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => onNavigateToPermissions()}
-            leftIcon={<Shield className="w-4 h-4 text-[#0066ff]" />}
-          >
-            Matriz de Permissões
+          <Button variant="outline" size="sm" onClick={fetchMembers} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => setIsInviteModalOpen(true)}
-            leftIcon={<UserPlus className="w-4 h-4" />}
-          >
-            Convidar Usuário
-          </Button>
+          {isCurrentActorAdminOrOwner && (
+            <Button variant="primary" size="sm" onClick={() => setIsInviteModalOpen(true)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Convidar Usuário
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Action Alerts */}
+      {/* Notifications */}
       {actionError && (
-        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm font-medium flex items-center gap-3 animate-in fade-in">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-          <span>{actionError}</span>
+        <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl flex items-start gap-3 text-rose-800 dark:text-rose-300">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <span className="font-semibold">Erro: </span>
+            {actionError}
+          </div>
+          <button onClick={() => setActionError(null)} className="ml-auto text-rose-500 hover:text-rose-700">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
       {actionSuccess && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium flex items-center gap-3 animate-in fade-in">
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>{actionSuccess}</span>
+        <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-start gap-3 text-emerald-800 dark:text-emerald-300">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="text-sm font-medium">{actionSuccess}</div>
+          <button onClick={() => setActionSuccess(null)} className="ml-auto text-emerald-500 hover:text-emerald-700">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Users Table Card */}
-      <div className="bg-white rounded-3xl border border-[#e2e8f0] shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-700">
-            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-400 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4">Usuário</th>
-                <th className="px-6 py-4">Papel na Conta</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Softwares Liberados</th>
-                <th className="px-6 py-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {members.map((member) => (
-                <tr key={member.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-slate-800 shrink-0">
-                        {member.initials}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-900">{member.name}</div>
-                        <div className="text-xs text-slate-500">{member.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="capitalize font-semibold text-xs text-slate-700">
-                      {member.role === 'owner'
-                        ? 'Proprietário (Owner)'
-                        : member.role === 'admin'
-                        ? 'Administrador'
-                        : 'Membro'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <Badge status={member.status} />
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {member.assignedProducts.includes('orcagraf') && (
-                        <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-1.5" title="OrçaGraf">
-                          <img src={orcagrafSymbol} alt="OrçaGraf" className="w-4 h-4 object-contain" />
-                          <span className="text-[11px] font-semibold text-emerald-800 hidden sm:inline">OrçaGraf</span>
-                        </div>
-                      )}
-                      {member.assignedProducts.includes('arteflow') && (
-                        <div className="p-1.5 rounded-lg bg-sky-50 border border-sky-200 flex items-center gap-1.5" title="ArteFlow">
-                          <img src={arteflowSymbol} alt="ArteFlow" className="w-4 h-4 object-contain" />
-                          <span className="text-[11px] font-semibold text-sky-800 hidden sm:inline">ArteFlow</span>
-                        </div>
-                      )}
-                      {member.assignedProducts.includes('artecheck') && (
-                        <div className="p-1.5 rounded-lg bg-purple-50 border border-purple-200 flex items-center gap-1.5" title="ArteCheck">
-                          <img src={artecheckSymbol} alt="ArteCheck" className="w-4 h-4 object-contain" />
-                          <span className="text-[11px] font-semibold text-purple-800 hidden sm:inline">ArteCheck</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setEditingMember(member)}
-                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#0066ff] hover:bg-blue-50 transition-colors"
-                      >
-                        Configurar
-                      </button>
-
-                      {member.role !== 'owner' && (
-                        <button
-                          onClick={() => handleToggleStatus(member)}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            member.status === 'active'
-                              ? 'text-slate-400 hover:text-red-600 hover:bg-red-50'
-                              : 'text-emerald-600 hover:bg-emerald-50'
-                          }`}
-                          title={member.status === 'active' ? 'Suspender Usuário' : 'Ativar Usuário'}
-                        >
-                          {member.status === 'active' ? (
-                            <UserX className="w-4 h-4" />
-                          ) : (
-                            <UserCheck className="w-4 h-4" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Members Table */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Membros da Organização ({members.length})
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Todos os acessos são autenticados e isolados com segurança multi-tenant.
+            </p>
+          </div>
         </div>
+
+        {isLoading ? (
+          <div className="p-12 flex flex-col items-center justify-center text-slate-400 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <p className="text-sm">Carregando membros e permissões...</p>
+          </div>
+        ) : members.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            Nenhum membro encontrado na organização.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="px-6 py-3.5">Usuário</th>
+                  <th className="px-6 py-3.5">Papel</th>
+                  <th className="px-6 py-3.5">Status</th>
+                  <th className="px-6 py-3.5">Softwares Autorizados</th>
+                  <th className="px-6 py-3.5 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {members.map((member) => {
+                  const isOwner = member.role === 'owner';
+                  const isSelf = member.userId === currentUser?.id;
+
+                  return (
+                    <tr key={member.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      {/* User Info */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-center text-sm border border-indigo-200 dark:border-indigo-800">
+                            {member.fullName?.charAt(0)?.toUpperCase() || member.email?.charAt(0)?.toUpperCase() || 'U'}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                              {member.fullName || 'Usuário'}
+                              {isSelf && (
+                                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded font-normal">
+                                  Você
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <Mail className="w-3.5 h-3.5" />
+                              {member.email}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Role Badge */}
+                      <td className="px-6 py-4">
+                        {isOwner ? (
+                          <Badge variant="success" label="Proprietário" className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 font-semibold" />
+                        ) : member.role === 'admin' ? (
+                          <Badge variant="success" label="Administrador" className="bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 font-semibold" />
+                        ) : (
+                          <Badge variant="neutral" label="Membro" className="font-normal text-slate-600 dark:text-slate-400" />
+                        )}
+                      </td>
+
+                      {/* Status Badge */}
+                      <td className="px-6 py-4">
+                        {member.isActive ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 dark:text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            Inativo
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Product Access Badges */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {member.products && member.products.length > 0 ? (
+                            member.products.map((prod) => (
+                              <span
+                                key={prod}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${
+                                  prod === 'orcagraf'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                    : prod === 'arteflow'
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
+                                    : 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+                                }`}
+                              >
+                                <img src={productIcons[prod]} alt="" className="w-3.5 h-3.5 object-contain" />
+                                {prod === 'orcagraf' ? 'OrçaGraf' : prod === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Nenhum produto liberado</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isCurrentActorAdminOrOwner && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenEdit(member)}
+                                title="Configurar permissões e acessos"
+                              >
+                                <Settings className="w-3.5 h-3.5 mr-1.5" />
+                                Permissões
+                              </Button>
+
+                              {!isOwner && (
+                                <button
+                                  onClick={() => handleToggleStatus(member)}
+                                  className={`p-1.5 rounded-lg border transition-colors ${
+                                    member.isActive
+                                      ? 'text-slate-400 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800'
+                                      : 'text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 dark:hover:border-emerald-800'
+                                  }`}
+                                  title={member.isActive ? 'Desativar usuário' : 'Ativar usuário'}
+                                >
+                                  {member.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Invite User Modal */}
+      {/* ========================================================================= */}
+      {/* DRAWER LATERAL: EDITAR MEMBRO & PERMISSÕES GRANULARES POR PRODUTO          */}
+      {/* ========================================================================= */}
+      {editingMember && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col border-l border-slate-200 dark:border-slate-800">
+            {/* Drawer Header */}
+            <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-indigo-600" />
+                  Gerenciar Membro & Permissões
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {editingMember.fullName || editingMember.email} ({editingMember.email})
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingMember(null)}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Drawer Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Papel Organizacional */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                  Papel na Organização
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditRole('admin')}
+                    disabled={editingMember.role === 'owner'}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      editRole === 'admin'
+                        ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    } ${editingMember.role === 'owner' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="text-sm font-bold flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-indigo-600" />
+                      Administrador
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Gerencia membros, permissões e convites da empresa.
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditRole('member')}
+                    disabled={editingMember.role === 'owner'}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      editRole === 'member'
+                        ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    } ${editingMember.role === 'owner' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="text-sm font-bold flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-slate-500" />
+                      Membro Padrão
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Acesso restrito apenas aos softwares e telas autorizadas.
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Acesso por Software (Entitlements) */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                  Softwares Liberados para o Usuário
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['orcagraf', 'arteflow', 'artecheck'] as const).map((prodId) => {
+                    const hasPlan = orgHasEntitlement(prodId);
+                    const isEnabled = editProducts.includes(prodId);
+
+                    return (
+                      <button
+                        key={prodId}
+                        type="button"
+                        disabled={!hasPlan}
+                        onClick={() => {
+                          if (isEnabled) {
+                            setEditProducts(editProducts.filter((p) => p !== prodId));
+                          } else {
+                            setEditProducts([...editProducts, prodId]);
+                          }
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                          !hasPlan
+                            ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/20'
+                            : isEnabled
+                            ? prodId === 'orcagraf'
+                              ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-600'
+                              : prodId === 'arteflow'
+                              ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/30 text-sky-900 dark:text-sky-200 ring-1 ring-sky-600'
+                              : 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 ring-1 ring-purple-600'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <img src={productIcons[prodId]} alt="" className="w-5 h-5 object-contain" />
+                          <span className="font-bold text-xs uppercase tracking-wider">
+                            {prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-[11px]">
+                          {!hasPlan ? (
+                            <span className="text-rose-600 dark:text-rose-400 font-medium">Não contratado</span>
+                          ) : isEnabled ? (
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Liberado</span>
+                          ) : (
+                            <span className="text-slate-400">Bloqueado</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Abas Independentes de Permissões por Software */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <div className="flex gap-2">
+                    {(['orcagraf', 'arteflow', 'artecheck'] as const).map((prodId) => (
+                      <button
+                        key={prodId}
+                        onClick={() => setActiveProductTab(prodId)}
+                        className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                          activeProductTab === prodId
+                            ? prodId === 'orcagraf'
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : prodId === 'arteflow'
+                              ? 'bg-sky-600 text-white shadow-sm'
+                              : 'bg-purple-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <img src={productIcons[prodId]} alt="" className="w-4 h-4 object-contain" />
+                        {prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Preset Dropdown */}
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <select
+                      className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 font-medium text-slate-700 dark:text-slate-300"
+                      onChange={(e) => {
+                        if (e.target.value) handleApplyPreset(activeProductTab, e.target.value);
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>
+                        Aplicar Preset...
+                      </option>
+                      {PERMISSIONS_MATRIX[activeProductTab].presets.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Categories & Switches */}
+                <div className="space-y-6">
+                  {PERMISSIONS_MATRIX[activeProductTab].categories.map((cat) => (
+                    <div key={cat.id} className="space-y-2.5">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        {cat.label}
+                      </h4>
+                      <div className="space-y-2">
+                        {cat.permissions.map((perm) => {
+                          const isChecked = editPermissions[activeProductTab]?.[perm.key] ?? false;
+
+                          return (
+                            <label
+                              key={perm.key}
+                              className="flex items-start justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                            >
+                              <div className="pr-4">
+                                <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                                  {perm.label}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                  {perm.description}
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleTogglePermission(activeProductTab, perm.key)}
+                                className="mt-1 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-3">
+              <Button variant="outline" size="md" onClick={() => setEditingMember(null)}>
+                Cancelar
+              </Button>
+              <Button variant="primary" size="md" onClick={handleSaveMemberChanges} disabled={isSavingPermissions}>
+                {isSavingPermissions ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar Alterações
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CONVIDAR NOVO USUÁRIO                                              */}
+      {/* ========================================================================= */}
       <Modal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         title="Convidar Novo Usuário"
-        maxWidth="md"
       >
-        <form onSubmit={handleSendInvite} className="space-y-4">
+        <form onSubmit={handleSendInvite} className="space-y-5">
           <Input
-            label="E-mail de Trabalho"
+            label="E-mail Corporativo"
             type="email"
-            required
+            placeholder="usuario@suagrafica.com.br"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="colaborador@empresa.com"
-            leftIcon={<Mail className="w-4 h-4" />}
+            required
           />
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Papel na Organização
             </label>
-            <select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as any)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
-            >
-              <option value="member">Membro (Acesso aos produtos liberados)</option>
-              <option value="admin">Administrador (Pode gerenciar usuários e assinaturas)</option>
-            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setInviteRole('member')}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  inviteRole === 'member'
+                    ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <div className="text-xs font-bold">Membro Padrão</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Acessa apenas os softwares autorizados.</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setInviteRole('admin')}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  inviteRole === 'admin'
+                    ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <div className="text-xs font-bold">Administrador</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Pode gerenciar usuários e convites.</div>
+              </button>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Liberar Acesso Aos Softwares da Assinatura
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Softwares a Liberar
             </label>
             <div className="space-y-2">
-              {[
-                { id: 'orcagraf' as ProductId, name: 'OrçaGraf (Orçamentos & Custos)', img: orcagrafSymbol },
-                { id: 'arteflow' as ProductId, name: 'ArteFlow (Produção & Financeiro)', img: arteflowSymbol },
-                { id: 'artecheck' as ProductId, name: 'ArteCheck (Pré-impressão)', img: artecheckSymbol },
-              ].map((prod) => {
-                const inPlan = isProductInPlan(prod.id);
+              {(['orcagraf', 'arteflow', 'artecheck'] as const).map((prodId) => {
+                const hasPlan = orgHasEntitlement(prodId);
+                const isSelected = inviteProducts.includes(prodId);
+
                 return (
                   <label
-                    key={prod.id}
+                    key={prodId}
                     className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
-                      inPlan
-                        ? 'border-slate-200 hover:bg-slate-50 cursor-pointer'
-                        : 'border-slate-100 bg-slate-50/60 opacity-60 cursor-not-allowed'
+                      !hasPlan
+                        ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800'
+                        : isSelected
+                        ? 'bg-indigo-50/30 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-800'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <img src={prod.img} alt={prod.name} className="w-5 h-5 object-contain" />
-                      <div>
-                        <span className="text-xs sm:text-sm font-semibold text-slate-800 block">
-                          {prod.name}
-                        </span>
-                        {!inPlan && (
-                          <span className="text-[10px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
-                            <Lock className="w-3 h-3" /> Não incluído na assinatura
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2.5">
+                      <img src={productIcons[prodId]} alt="" className="w-5 h-5 object-contain" />
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
+                      </span>
                     </div>
-                    <input
-                      type="checkbox"
-                      disabled={!inPlan}
-                      checked={inPlan && selectedProducts.includes(prod.id)}
-                      onChange={() => toggleProductForInvite(prod.id)}
-                      className="w-4 h-4 rounded text-[#0066ff] focus:ring-[#0066ff]"
-                    />
+
+                    {!hasPlan ? (
+                      <span className="text-xs text-rose-500 font-medium">Não contratado</span>
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          if (isSelected) {
+                            setInviteProducts(inviteProducts.filter((p) => p !== prodId));
+                          } else {
+                            setInviteProducts([...inviteProducts, prodId]);
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                    )}
                   </label>
                 );
               })}
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setIsInviteModalOpen(false)}
-            >
+          <div className="pt-3 flex justify-end gap-3">
+            <Button variant="outline" type="button" onClick={() => setIsInviteModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSubmitting}>
-              Enviar Convite
+            <Button variant="primary" type="submit" disabled={isInviting || !inviteEmail}>
+              {isInviting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Gerando Convite...
+                </>
+              ) : (
+                'Gerar Convite'
+              )}
             </Button>
           </div>
         </form>
-      </Modal>
-
-      {/* Edit Member & Product Access Modal */}
-      <Modal
-        isOpen={!!editingMember}
-        onClose={() => setEditingMember(null)}
-        title={`Configurar Acessos: ${editingMember?.name || ''}`}
-        maxWidth="lg"
-      >
-        {editingMember && (
-          <form onSubmit={handleSaveMemberAccess} className="space-y-5">
-            {/* Step 1: User Info */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-full bg-white border border-slate-200 font-bold text-sm text-slate-800 flex items-center justify-center">
-                  {editingMember.initials}
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{editingMember.name}</h4>
-                  <p className="text-xs text-slate-500">{editingMember.email}</p>
-                </div>
-              </div>
-              <Badge status={editingMember.status} />
-            </div>
-
-            {/* Step 2: Software Access Toggles */}
-            <div>
-              <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
-                Acesso aos Softwares Contratados
-              </h5>
-              <div className="space-y-2.5">
-                {[
-                  { id: 'orcagraf' as ProductId, name: 'OrçaGraf', desc: 'Orçamentos e gestão comercial', img: orcagrafSymbol },
-                  { id: 'arteflow' as ProductId, name: 'ArteFlow', desc: 'Produção, pedidos e financeiro', img: arteflowSymbol },
-                  { id: 'artecheck' as ProductId, name: 'ArteCheck', desc: 'Pré-impressão e análise técnica', img: artecheckSymbol },
-                ].map((prod) => {
-                  const inPlan = isProductInPlan(prod.id);
-                  const hasAccess = editingMember.assignedProducts.includes(prod.id);
-
-                  return (
-                    <div
-                      key={prod.id}
-                      className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
-                        !inPlan
-                          ? 'bg-slate-50/50 border-slate-200 opacity-60'
-                          : hasAccess
-                          ? 'bg-blue-50/30 border-blue-200'
-                          : 'bg-white border-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <img src={prod.img} alt={prod.name} className="w-6 h-6 object-contain" />
-                        <div>
-                          <span className="text-sm font-bold text-slate-900 block">{prod.name}</span>
-                          <span className="text-xs text-slate-500">{prod.desc}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-3">
-                        {!inPlan ? (
-                          <span className="text-xs text-amber-700 font-semibold bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-                            Não contratado
-                          </span>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onNavigateToPermissions(prod.id);
-                                setEditingMember(null);
-                              }}
-                              className="text-xs font-semibold text-[#0066ff] hover:underline flex items-center gap-1"
-                            >
-                              <Settings className="w-3.5 h-3.5" /> Permissões
-                            </button>
-                            <input
-                              type="checkbox"
-                              checked={hasAccess}
-                              onChange={() => {
-                                const updated = hasAccess
-                                  ? editingMember.assignedProducts.filter((p) => p !== prod.id)
-                                  : [...editingMember.assignedProducts, prod.id];
-                                setEditingMember({ ...editingMember, assignedProducts: updated });
-                              }}
-                              className="w-4 h-4 rounded text-[#0066ff] focus:ring-[#0066ff]"
-                            />
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setEditingMember(null)}>
-                Cancelar
-              </Button>
-              <Button type="submit" variant="primary">
-                Salvar Alterações
-              </Button>
-            </div>
-          </form>
-        )}
       </Modal>
     </div>
   );
