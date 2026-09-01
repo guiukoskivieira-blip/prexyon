@@ -365,60 +365,15 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBack }) =>
                       Softwares Inclusos
                     </span>
                     <ul className="space-y-1.5 text-xs text-slate-600">
-                      <li className="flex items-center gap-2">
-                        <Check
-                          className={`w-3.5 h-3.5 ${
-                            plan.includedProductCodes.includes('orcagraf')
-                              ? 'text-emerald-600 font-bold'
-                              : 'text-slate-300'
-                          }`}
-                        />
-                        <span
-                          className={
-                            plan.includedProductCodes.includes('orcagraf')
-                              ? 'font-medium text-slate-800'
-                              : 'text-slate-400 line-through'
-                          }
-                        >
-                          OrçaGraf
-                        </span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check
-                          className={`w-3.5 h-3.5 ${
-                            plan.includedProductCodes.includes('arteflow')
-                              ? 'text-emerald-600 font-bold'
-                              : 'text-slate-300'
-                          }`}
-                        />
-                        <span
-                          className={
-                            plan.includedProductCodes.includes('arteflow')
-                              ? 'font-medium text-slate-800'
-                              : 'text-slate-400 line-through'
-                          }
-                        >
-                          ArteFlow
-                        </span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check
-                          className={`w-3.5 h-3.5 ${
-                            plan.includedProductCodes.includes('artecheck')
-                              ? 'text-emerald-600 font-bold'
-                              : 'text-slate-300'
-                          }`}
-                        />
-                        <span
-                          className={
-                            plan.includedProductCodes.includes('artecheck')
-                              ? 'font-medium text-slate-800'
-                              : 'text-slate-400 line-through'
-                          }
-                        >
-                          ArteCheck
-                        </span>
-                      </li>
+                      {plan.includedProductCodes.map((prodCode) => {
+                        const info = getProductInfo(prodCode);
+                        return (
+                          <li key={prodCode} className="flex items-center gap-2">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 font-bold shrink-0" />
+                            <span className="font-semibold text-slate-800">{info.name}</span>
+                          </li>
+                        );
+                      })}
                     </ul>
 
                     <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-500">

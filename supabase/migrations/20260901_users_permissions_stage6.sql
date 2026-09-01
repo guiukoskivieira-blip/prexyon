@@ -169,18 +169,27 @@ BEGIN
     RAISE EXCEPTION 'INVALID_EMAIL' USING ERRCODE = '22023';
   END IF;
 
-  -- 4. Validar se a organização possui entitlement para cada produto solicitado
+  -- 4. Validar Entitlement da Organização (Fail-Closed)
   v_entitlements := public.prexyon_get_organization_entitlements(p_organization_id);
-  
+
+  IF (v_entitlements->>'has_subscription')::boolean = false THEN
+    IF (p_product_access IS NOT NULL AND array_length(p_product_access, 1) > 0) OR (p_permissions IS NOT NULL AND p_permissions <> '{}'::jsonb) THEN
+      RAISE EXCEPTION 'PRODUCT_NOT_IN_SUBSCRIPTION: Organization does not have an active subscription' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
   IF p_product_access IS NOT NULL AND array_length(p_product_access, 1) > 0 THEN
     FOREACH v_prod IN ARRAY p_product_access LOOP
-      IF v_prod NOT IN ('orcagraf', 'arteflow', 'artecheck') THEN
-        RAISE EXCEPTION 'INVALID_PRODUCT_KEY: %', v_prod USING ERRCODE = '22023';
-      END IF;
-
-      -- Verificar se o produto está nos included_products da assinatura ativa da organização
       IF NOT ((v_entitlements->>'has_subscription')::boolean = true AND (v_entitlements->'included_products') @> to_jsonb(v_prod)) THEN
         RAISE EXCEPTION 'PRODUCT_NOT_IN_SUBSCRIPTION: Organization does not have an active subscription for product %', v_prod USING ERRCODE = 'P0001';
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF p_permissions IS NOT NULL AND p_permissions <> '{}'::jsonb THEN
+    FOR v_prod_key IN SELECT key FROM jsonb_each(p_permissions) LOOP
+      IF NOT ((v_entitlements->>'has_subscription')::boolean = true AND (v_entitlements->'included_products') @> to_jsonb(v_prod_key)) THEN
+        RAISE EXCEPTION 'PRODUCT_NOT_IN_SUBSCRIPTION: Organization does not have an active subscription for product %', v_prod_key USING ERRCODE = 'P0001';
       END IF;
     END LOOP;
   END IF;
@@ -640,10 +649,24 @@ BEGIN
   -- 1. Validar se a organização possui entitlement para cada produto
   v_entitlements := public.prexyon_get_organization_entitlements(p_organization_id);
 
+  IF (v_entitlements->>'has_subscription')::boolean = false THEN
+    IF (p_products IS NOT NULL AND array_length(p_products, 1) > 0) OR (p_permissions IS NOT NULL AND p_permissions <> '{}'::jsonb) THEN
+      RAISE EXCEPTION 'PRODUCT_NOT_IN_SUBSCRIPTION: Organization does not have an active subscription' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
   IF p_products IS NOT NULL AND array_length(p_products, 1) > 0 THEN
     FOREACH v_prod IN ARRAY p_products LOOP
       IF NOT ((v_entitlements->>'has_subscription')::boolean = true AND (v_entitlements->'included_products') @> to_jsonb(v_prod)) THEN
         RAISE EXCEPTION 'PRODUCT_NOT_IN_SUBSCRIPTION: Organization does not have subscription for %', v_prod USING ERRCODE = 'P0001';
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF p_permissions IS NOT NULL AND p_permissions <> '{}'::jsonb THEN
+    FOR v_prod_key IN SELECT key FROM jsonb_each(p_permissions) LOOP
+      IF NOT ((v_entitlements->>'has_subscription')::boolean = true AND (v_entitlements->'included_products') @> to_jsonb(v_prod_key)) THEN
+        RAISE EXCEPTION 'PRODUCT_NOT_IN_SUBSCRIPTION: Organization does not have subscription for %', v_prod_key USING ERRCODE = 'P0001';
       END IF;
     END LOOP;
   END IF;

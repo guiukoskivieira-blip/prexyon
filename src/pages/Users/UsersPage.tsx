@@ -199,12 +199,21 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
       }
     }
 
-    // 2. Access and permissions update
+    // 2. Filter out products/permissions that are not entitled for this org
+    const validProducts = editProducts.filter((p) => orgHasEntitlement(p));
+    const validPermissions: Record<string, Record<string, boolean>> = {};
+    for (const [prodKey, perms] of Object.entries(editPermissions)) {
+      if (orgHasEntitlement(prodKey as ProductId)) {
+        validPermissions[prodKey] = perms;
+      }
+    }
+
+    // Access and permissions update
     const accessRes = await memberManagementService.updateAccessAndPermissions(
       organization.id,
       editingMember.userId,
-      editProducts,
-      editPermissions
+      validProducts,
+      validPermissions
     );
 
     setIsSavingPermissions(false);
@@ -567,40 +576,51 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
 
               {/* Abas Independentes de Permissões por Software */}
               <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-3">
                   <div className="flex gap-2">
-                    {(['orcagraf', 'arteflow', 'artecheck'] as const).map((prodId) => (
-                      <button
-                        key={prodId}
-                        onClick={() => setActiveProductTab(prodId)}
-                        className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
-                          activeProductTab === prodId
-                            ? prodId === 'orcagraf'
-                              ? 'bg-emerald-600 text-white shadow-sm'
-                              : prodId === 'arteflow'
-                              ? 'bg-sky-600 text-white shadow-sm'
-                              : 'bg-purple-600 text-white shadow-sm'
-                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <img src={productIcons[prodId]} alt="" className="w-4 h-4 object-contain" />
-                        {prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
-                      </button>
-                    ))}
+                    {(['orcagraf', 'arteflow', 'artecheck'] as const).map((prodId) => {
+                      const tabHasPlan = orgHasEntitlement(prodId);
+                      return (
+                        <button
+                          key={prodId}
+                          onClick={() => setActiveProductTab(prodId)}
+                          className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                            activeProductTab === prodId
+                              ? prodId === 'orcagraf'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : prodId === 'arteflow'
+                                ? 'bg-sky-600 text-white shadow-sm'
+                                : 'bg-purple-600 text-white shadow-sm'
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <img src={productIcons[prodId]} alt="" className="w-4 h-4 object-contain" />
+                          <span>{prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}</span>
+                          {!tabHasPlan && (
+                            <span className="text-[9px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded">
+                              Não contratado
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Preset Dropdown */}
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <Sparkles className={`w-4 h-4 ${orgHasEntitlement(activeProductTab) ? 'text-amber-500' : 'text-slate-300'}`} />
                     <select
-                      className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 font-medium text-slate-700 dark:text-slate-300"
+                      disabled={!orgHasEntitlement(activeProductTab)}
+                      className={`text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 font-medium text-slate-700 dark:text-slate-300 ${
+                        !orgHasEntitlement(activeProductTab) ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800/40' : ''
+                      }`}
                       onChange={(e) => {
                         if (e.target.value) handleApplyPreset(activeProductTab, e.target.value);
                       }}
                       defaultValue=""
                     >
                       <option value="" disabled>
-                        Aplicar Preset...
+                        {orgHasEntitlement(activeProductTab) ? 'Aplicar Preset...' : 'Presets bloqueados'}
                       </option>
                       {PERMISSIONS_MATRIX[activeProductTab].presets.map((preset) => (
                         <option key={preset.id} value={preset.id}>
@@ -611,6 +631,19 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
                   </div>
                 </div>
 
+                {/* Banner de Produto Não Contratado */}
+                {!orgHasEntitlement(activeProductTab) && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5 animate-in fade-in">
+                    <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div>
+                      <span className="font-bold">Produto não contratado pela organização.</span>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                        Contrate este software no menu Assinatura para liberar o acesso e habilitar a configuração de permissões para os usuários.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Categories & Switches */}
                 <div className="space-y-6">
                   {PERMISSIONS_MATRIX[activeProductTab].categories.map((cat) => (
@@ -620,12 +653,17 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
                       </h4>
                       <div className="space-y-2">
                         {cat.permissions.map((perm) => {
-                          const isChecked = editPermissions[activeProductTab]?.[perm.key] ?? false;
+                          const isTabEntitled = orgHasEntitlement(activeProductTab);
+                          const isChecked = isTabEntitled && (editPermissions[activeProductTab]?.[perm.key] ?? false);
 
                           return (
                             <label
                               key={perm.key}
-                              className="flex items-start justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                              className={`flex items-start justify-between p-3 rounded-xl border transition-colors ${
+                                !isTabEntitled
+                                  ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800'
+                                  : 'border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
+                              }`}
                             >
                               <div className="pr-4">
                                 <div className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -637,9 +675,14 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
                               </div>
                               <input
                                 type="checkbox"
+                                disabled={!isTabEntitled}
                                 checked={isChecked}
-                                onChange={() => handleTogglePermission(activeProductTab, perm.key)}
-                                className="mt-1 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                                onChange={() => {
+                                  if (isTabEntitled) {
+                                    handleTogglePermission(activeProductTab, perm.key);
+                                  }
+                                }}
+                                className="mt-1 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 disabled:cursor-not-allowed"
                               />
                             </label>
                           );

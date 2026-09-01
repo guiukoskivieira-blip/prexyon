@@ -317,7 +317,6 @@ async function runPlansCatalogTests() {
       VALUES ('${testOrgId}', '${comboPlanId}', 'active', now(), now() + interval '30 days');
     `);
 
-    // Tentar gerar SSO para ArteCheck (não incluído no combo)
     let artecheckSsoBlocked = false;
     try {
       await client.query(`SELECT public.prexyon_generate_sso_code('${testOrgId}', '${testUserId}', 'artecheck');`);
@@ -332,13 +331,157 @@ async function runPlansCatalogTests() {
     );
 
     // --------------------------------------------------------------------------
+    // TESTE 17: Request manual para conceder permissão sem subscription é REJEITADO
+    // --------------------------------------------------------------------------
+    const noSubOrgId = crypto.randomUUID();
+    const noSubUserId = crypto.randomUUID();
+    await client.query(`INSERT INTO public.organizations (id, trade_name, is_active) VALUES ('${noSubOrgId}', 'Org Sem Sub Test', true);`);
+    await client.query(`INSERT INTO auth.users (id, email) VALUES ('${noSubUserId}', 'nosub-${Date.now()}@prexyon.com');`);
+    await client.query(`INSERT INTO public.profiles (id, full_name, email) VALUES ('${noSubUserId}', 'No Sub Owner', 'nosub-${Date.now()}@prexyon.com');`);
+    await client.query(`INSERT INTO public.organization_members (organization_id, user_id, role, is_active, is_locked) VALUES ('${noSubOrgId}', '${noSubUserId}', 'owner', true, false);`);
+
+    await client.query(`SET request.jwt.claims = '{"sub": "${noSubUserId}", "email": "nosub@prexyon.com"}';`);
+
+    let manualNoSubBlocked = false;
+    try {
+      await client.query(`
+        SELECT public.prexyon_update_member_access_and_permissions(
+          '${noSubOrgId}',
+          '${noSubUserId}',
+          ARRAY['orcagraf'],
+          '{"orcagraf": {"orcagraf.quotes.create": true}}'::jsonb
+        );
+      `);
+    } catch (err: any) {
+      manualNoSubBlocked = err.message.includes('PRODUCT_NOT_IN_SUBSCRIPTION') || err.code === 'P0001';
+    }
+
+    // Verificar no banco que NENHUMA permissão ou acesso foi persistido
+    const noSubPermsInDb = await client.query(`
+      SELECT count(*) as count FROM public.product_permissions WHERE organization_id = '${noSubOrgId}';
+    `);
+    const noSubAccessInDb = await client.query(`
+      SELECT count(*) as count FROM public.organization_member_product_access WHERE organization_id = '${noSubOrgId}' AND is_enabled = true;
+    `);
+    const permsCount0 = parseInt(noSubPermsInDb.rows[0].count, 10);
+    const accessCount0 = parseInt(noSubAccessInDb.rows[0].count, 10);
+
+    assert(
+      manualNoSubBlocked && permsCount0 === 0 && accessCount0 === 0,
+      'Teste 17: Request manual em organização sem assinatura é rejeitado e banco permanece 100% inalterado',
+      'Rejeitado (P0001) e 0 registros persistidos',
+      `Rejeitado: ${manualNoSubBlocked}, perms: ${permsCount0}, access: ${accessCount0}`
+    );
+
+    // --------------------------------------------------------------------------
+    // TESTE 18: Organização com OrçaGraf individual: ArteFlow e ArteCheck manuais são rejeitados
+    // --------------------------------------------------------------------------
+    const singleSubOrgId = crypto.randomUUID();
+    const singleSubUserId = crypto.randomUUID();
+    const orcagrafPlanIdRes = await client.query("SELECT id FROM public.prexyon_plans WHERE code = 'orcagraf';");
+    const orcagrafPlanId = orcagrafPlanIdRes.rows[0]?.id;
+
+    await client.query(`INSERT INTO public.organizations (id, trade_name, is_active) VALUES ('${singleSubOrgId}', 'Org Single Sub Test', true);`);
+    await client.query(`INSERT INTO auth.users (id, email) VALUES ('${singleSubUserId}', 'single-${Date.now()}@prexyon.com');`);
+    await client.query(`INSERT INTO public.profiles (id, full_name, email) VALUES ('${singleSubUserId}', 'Single Owner', 'single-${Date.now()}@prexyon.com');`);
+    await client.query(`INSERT INTO public.organization_members (organization_id, user_id, role, is_active, is_locked) VALUES ('${singleSubOrgId}', '${singleSubUserId}', 'owner', true, false);`);
+    await client.query(`INSERT INTO public.prexyon_subscriptions (organization_id, plan_id, status, current_period_start, current_period_end) VALUES ('${singleSubOrgId}', '${orcagrafPlanId}', 'active', now(), now() + interval '30 days');`);
+
+    await client.query(`SET request.jwt.claims = '{"sub": "${singleSubUserId}", "email": "single@prexyon.com"}';`);
+
+    // 18a: Permitido para OrçaGraf
+    let orcagrafAllowed = false;
+    try {
+      await client.query(`
+        SELECT public.prexyon_update_member_access_and_permissions(
+          '${singleSubOrgId}',
+          '${singleSubUserId}',
+          ARRAY['orcagraf'],
+          '{"orcagraf": {"orcagraf.quotes.create": true}}'::jsonb
+        );
+      `);
+      orcagrafAllowed = true;
+    } catch (err: any) {
+      orcagrafAllowed = false;
+    }
+
+    // 18b: Rejeitado para ArteFlow
+    let arteflowRejected = false;
+    try {
+      await client.query(`
+        SELECT public.prexyon_update_member_access_and_permissions(
+          '${singleSubOrgId}',
+          '${singleSubUserId}',
+          ARRAY['orcagraf', 'arteflow'],
+          '{"arteflow": {"arteflow.view": true}}'::jsonb
+        );
+      `);
+    } catch (err: any) {
+      arteflowRejected = err.message.includes('PRODUCT_NOT_IN_SUBSCRIPTION') || err.code === 'P0001';
+    }
+
+    // Provar no banco que ArteFlow não foi persistido
+    const arteflowCheckInDb = await client.query(`
+      SELECT count(*) as count FROM public.product_permissions WHERE organization_id = '${singleSubOrgId}' AND product_key = 'arteflow';
+    `);
+    const arteflowCountInDb = parseInt(arteflowCheckInDb.rows[0].count, 10);
+
+    assert(
+      orcagrafAllowed && arteflowRejected && arteflowCountInDb === 0,
+      'Teste 18: Plano individual OrçaGraf permite OrçaGraf mas rejeita estritamente concessão de ArteFlow (Banco inalterado)',
+      'OrçaGraf OK, ArteFlow Rejeitado (P0001), 0 perms persistidas para ArteFlow',
+      `OrçaGraf: ${orcagrafAllowed}, ArteFlow Rejeitado: ${arteflowRejected}, DB count: ${arteflowCountInDb}`
+    );
+
+    // --------------------------------------------------------------------------
+    // TESTE 19: Plano Prexyon Completo permite todos os 3 softwares com isolamento e integridade
+    // --------------------------------------------------------------------------
+    const completePlanIdRes = await client.query("SELECT id FROM public.prexyon_plans WHERE code = 'prexyon_complete';");
+    const completePlanId = completePlanIdRes.rows[0]?.id;
+
+    await client.query(`
+      UPDATE public.prexyon_subscriptions 
+      SET plan_id = '${completePlanId}', updated_at = now() 
+      WHERE organization_id = '${singleSubOrgId}';
+    `);
+
+    let completeAllAllowed = false;
+    try {
+      await client.query(`
+        SELECT public.prexyon_update_member_access_and_permissions(
+          '${singleSubOrgId}',
+          '${singleSubUserId}',
+          ARRAY['orcagraf', 'arteflow', 'artecheck'],
+          '{"orcagraf": {"orcagraf.quotes.create": true}, "arteflow": {"arteflow.view": true}, "artecheck": {"artecheck.preflight.run": true}}'::jsonb
+        );
+      `);
+      completeAllAllowed = true;
+    } catch (err: any) {
+      completeAllAllowed = false;
+    }
+
+    const all3PermsInDb = await client.query(`
+      SELECT count(*) as count FROM public.product_permissions WHERE organization_id = '${singleSubOrgId}';
+    `);
+    const all3Count = parseInt(all3PermsInDb.rows[0].count, 10);
+
+    assert(
+      completeAllAllowed && all3Count === 3,
+      'Teste 19: Plano Prexyon Completo autoriza os três produtos e persiste exatamente as permissões granulares',
+      'true e 3 permissões persistidas',
+      `${completeAllAllowed} e ${all3Count} permissões persistidas`
+    );
+
+    // --------------------------------------------------------------------------
     // CLEANUP
     // --------------------------------------------------------------------------
     await client.query(`DELETE FROM public.prexyon_plans WHERE id = '${inactivePlanId}';`);
-    await client.query(`DELETE FROM public.prexyon_subscriptions WHERE organization_id = '${testOrgId}';`);
-    await client.query(`DELETE FROM public.organizations WHERE id = '${testOrgId}';`);
-    await client.query(`DELETE FROM public.profiles WHERE id = '${testUserId}';`);
-    await client.query(`DELETE FROM auth.users WHERE id = '${testUserId}';`);
+    await client.query(`DELETE FROM public.product_permissions WHERE organization_id IN ('${testOrgId}', '${noSubOrgId}', '${singleSubOrgId}');`);
+    await client.query(`DELETE FROM public.organization_member_product_access WHERE organization_id IN ('${testOrgId}', '${noSubOrgId}', '${singleSubOrgId}');`);
+    await client.query(`DELETE FROM public.prexyon_subscriptions WHERE organization_id IN ('${testOrgId}', '${noSubOrgId}', '${singleSubOrgId}');`);
+    await client.query(`DELETE FROM public.organizations WHERE id IN ('${testOrgId}', '${noSubOrgId}', '${singleSubOrgId}');`);
+    await client.query(`DELETE FROM public.profiles WHERE id IN ('${testUserId}', '${noSubUserId}', '${singleSubUserId}');`);
+    await client.query(`DELETE FROM auth.users WHERE id IN ('${testUserId}', '${noSubUserId}', '${singleSubUserId}');`);
 
   } finally {
     await client.end();
