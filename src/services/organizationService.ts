@@ -14,7 +14,7 @@ export const organizationService = {
     }
 
     try {
-      // 1. Busca vínculo na tabela organization_members
+      // 1. Busca vínculo estrito na tabela organization_members
       const { data: memberData, error: memberError } = await (supabase.from('organization_members') as any)
         .select(`
           organization_id,
@@ -51,6 +51,62 @@ export const organizationService = {
       };
     } catch {
       return null;
+    }
+  },
+
+  async createOrganization(params: {
+    tradeName: string;
+    corporateName?: string;
+    document?: string;
+    fullName?: string;
+  }): Promise<{ success: boolean; organization?: Organization; error?: string }> {
+    if (!isSupabaseConfigured()) {
+      return {
+        success: true,
+        organization: {
+          id: `org_${Date.now()}`,
+          name: params.tradeName,
+          tradeName: params.tradeName,
+          document: params.document,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      };
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('prexyon_create_organization', {
+        p_trade_name: params.tradeName,
+        p_corporate_name: params.corporateName || params.tradeName,
+        p_document: params.document || null,
+        p_full_name: params.fullName || null,
+      });
+
+      if (error) {
+        return {
+          success: false,
+          error: error.message === 'TRADE_NAME_REQUIRED'
+            ? 'O nome da empresa é obrigatório.'
+            : error.message === 'UNAUTHENTICATED'
+            ? 'Sessão expirada. Faça login novamente.'
+            : 'Erro ao cadastrar organização no servidor.'
+        };
+      }
+
+      const org: Organization = {
+        id: data.id,
+        name: data.name || params.tradeName,
+        tradeName: data.tradeName || params.tradeName,
+        document: data.document || undefined,
+        status: data.status === 'active' ? 'active' : 'suspended',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return { success: true, organization: org };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Falha de comunicação com o servidor.' };
     }
   },
 

@@ -16,7 +16,8 @@
     "test:subs": "tsx tests/subscriptions-stage41.test.ts",
     "test:billing": "tsx tests/billing-stage42.test.ts",
     "test:audit": "tsx tests/billing-audit-stage421.test.ts",
-    "test:billing-security": "tsx tests/billing-security-stage422.test.ts"
+    "test:billing-security": "tsx tests/billing-security-stage422.test.ts",
+    "test:onboarding": "tsx tests/onboarding-stage5.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

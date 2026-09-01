@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/Login/LoginPage';
+import { OnboardingPage } from './pages/Onboarding/OnboardingPage';
 import { PortalLayout } from './components/layout/PortalLayout';
 import { DashboardPage } from './pages/Dashboard/DashboardPage';
 import { SubscriptionPage } from './pages/Subscription/SubscriptionPage';
@@ -8,11 +9,15 @@ import { UsersPage } from './pages/Users/UsersPage';
 import { PermissionsPage } from './pages/Permissions/PermissionsPage';
 import { ProfilePage } from './pages/Profile/ProfilePage';
 import { SettingsPage } from './pages/Settings/SettingsPage';
+import { Loader2 } from 'lucide-react';
+import { PrexyonLogo } from './components/ui/PrexyonLogo';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading, organization } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
-    return window.location.pathname.startsWith('/app') ? window.location.pathname : '/app';
+    const path = window.location.pathname;
+    if (path === '/onboarding') return '/onboarding';
+    return path.startsWith('/app') ? path : '/app';
   });
   const [selectedProductIdForPerms, setSelectedProductIdForPerms] = useState<string>('orcagraf');
 
@@ -31,7 +36,20 @@ const AppContent: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // If user is not logged in, render the 1:1 Login Page
+  // 1. Loading State (avoid redirect flicker during session resolution)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center space-y-4">
+        <PrexyonLogo variant="dark" className="h-8 w-auto animate-pulse" />
+        <div className="flex items-center gap-2 text-slate-400 text-xs font-medium">
+          <Loader2 className="w-4 h-4 animate-spin text-[#0066ff]" />
+          <span>Carregando ambiente seguro...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated: Render Login
   if (!isAuthenticated) {
     return (
       <LoginPage
@@ -40,7 +58,22 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Render the authenticated Shell & corresponding sub-page
+  // 3. Authenticated without Organization: Enforce Onboarding
+  const hasOrganization = Boolean(organization && organization.id && organization.id.trim() !== '');
+  if (!hasOrganization) {
+    return (
+      <OnboardingPage
+        onComplete={() => navigate('/app')}
+      />
+    );
+  }
+
+  // If user already has an organization but visited /onboarding, redirect to /app
+  if (currentRoute === '/onboarding') {
+    navigate('/app');
+  }
+
+  // 4. Authenticated with Organization: Render Shell & Sub-pages
   const renderSubPage = () => {
     switch (currentRoute) {
       case '/app/assinatura':

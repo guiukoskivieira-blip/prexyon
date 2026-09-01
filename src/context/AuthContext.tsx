@@ -41,6 +41,15 @@ interface AuthContextType {
   updateProductStatus: (productId: ProductId, status: ProductStatus) => void;
   setOrganizationName: (name: string) => Promise<{ success: boolean; error?: string }>;
   updateUserProfile: (fullName: string) => Promise<{ success: boolean; error?: string }>;
+  completeOnboarding: (params: {
+    fullName: string;
+    tradeName: string;
+    corporateName?: string;
+    document?: string;
+    phone?: string;
+    city?: string;
+    state?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   inviteUser: (email: string, assignedProducts: ProductId[], role?: 'admin' | 'member' | 'guest') => Promise<{ success: boolean; error?: string }>;
   toggleMemberStatus: (memberId: string, status: 'active' | 'suspended') => Promise<{ success: boolean; error?: string }>;
   checkPermission: (productCode: ProductId, permissionKey?: string) => PermissionCheckResult;
@@ -87,11 +96,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const effectiveOrg = org || noOrgState;
       setOrganization(effectiveOrg);
 
+      // Resolução de nome por prioridade: profiles.full_name -> email derivado
+      const resolvedFullName = profile.name && profile.name !== email.split('@')[0]
+        ? profile.name
+        : (profile.name || email.split('@')[0] || 'Usuário');
+
       const authUser: AuthUser = {
         id: userId,
-        name: profile.name || email.split('@')[0] || 'Usuário',
-        firstName: profile.firstName || email.split('@')[0] || 'Usuário',
-        lastName: profile.lastName || '',
+        name: resolvedFullName,
+        firstName: profile.firstName || resolvedFullName.split(' ')[0] || 'Usuário',
+        lastName: profile.lastName || resolvedFullName.split(' ').slice(1).join(' ') || '',
         email: email,
         avatarUrl: profile.avatarUrl,
         initials: profile.initials || 'US',
@@ -128,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ]);
         }
       } else {
-        // Usuário sem organização: garante isolamento fail-closed estrito
+        // Usuário sem organização: isolamento estrito fail-closed
         setSubscription(null);
         syncProductsWithSubscription(null);
         setMembers([]);
@@ -365,6 +379,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return userService.updateProfile(user.id, fullName);
   };
 
+  const completeOnboarding = async (params: {
+    fullName: string;
+    tradeName: string;
+    corporateName?: string;
+    document?: string;
+    phone?: string;
+    city?: string;
+    state?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Usuário não autenticado.' };
+
+    const res = await organizationService.createOrganization({
+      tradeName: params.tradeName,
+      corporateName: params.corporateName,
+      document: params.document,
+      fullName: params.fullName,
+    });
+
+    if (!res.success || !res.organization) {
+      return { success: false, error: res.error || 'Erro ao criar organização.' };
+    }
+
+    await loadUserData(user.id, user.email || '');
+    return { success: true };
+  };
+
   const inviteUser = async (
     email: string,
     assignedProducts: ProductId[],
@@ -475,6 +515,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateProductStatus,
         setOrganizationName,
         updateUserProfile,
+        completeOnboarding,
         inviteUser,
         toggleMemberStatus,
         checkPermission,
