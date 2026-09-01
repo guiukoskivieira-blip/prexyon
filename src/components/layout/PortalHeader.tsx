@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { UserMenuDropdown } from './UserMenuDropdown';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import prexyonSymbol from '../../assets/branding/prexyon-symbol-circle.png';
+import { PrexyonLogo } from '../ui/PrexyonLogo';
 
 interface PortalHeaderProps {
   currentRoute: string;
@@ -60,17 +60,13 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ currentRoute, onNavi
               {/* Prexyon Brand Logo */}
               <button
                 onClick={() => onNavigate('/app')}
-                className="flex items-center space-x-2.5 focus:outline-none group text-left"
+                className="flex items-center focus:outline-none group text-left"
                 aria-label="Ir para Dashboard"
               >
-                <img
-                  src={prexyonSymbol}
-                  alt="Prexyon"
-                  className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
+                <PrexyonLogo
+                  variant="dark"
+                  className="h-7 sm:h-8 w-auto transition-transform group-hover:scale-105"
                 />
-                <span className="text-xl font-bold tracking-tight text-white hidden xs:inline-block">
-                  prexyon
-                </span>
               </button>
 
               {/* Vertical Divider */}

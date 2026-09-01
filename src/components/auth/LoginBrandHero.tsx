@@ -1,5 +1,5 @@
 import React from 'react';
-import prexyonSymbol from '../../assets/branding/prexyon-symbol-circle.png';
+import { PrexyonLogo } from '../ui/PrexyonLogo';
 import orcagrafSymbol from '../../assets/branding/orcagraf-symbol.png';
 import arteflowSymbol from '../../assets/branding/arteflow-symbol.png';
 import artecheckSymbol from '../../assets/branding/artecheck-symbol.png';
@@ -41,17 +41,10 @@ export const LoginBrandHero: React.FC = () => {
         <circle cx="80%" cy="90%" r="4" fill="#0088ff" opacity="0.7" />
       </svg>
 
-      {/* Header with Prexyon Logo */}
+      {/* Header with Official White Prexyon Logo */}
       <div className="relative z-10">
-        <div className="flex items-center space-x-3">
-          <img
-            src={prexyonSymbol}
-            alt="Prexyon"
-            className="w-10 h-10 object-contain drop-shadow-md"
-          />
-          <span className="text-2xl font-bold tracking-tight text-white font-sans">
-            prexyon
-          </span>
+        <div className="flex items-center">
+          <PrexyonLogo variant="dark" className="h-9 sm:h-10 w-auto" />
         </div>
       </div>
 

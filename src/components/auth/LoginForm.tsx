@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/Button';
-import prexyonSymbol from '../../assets/branding/prexyon-symbol-circle.png';
+import { PrexyonLogo } from '../ui/PrexyonLogo';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -49,17 +49,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     <div className="w-full max-w-md mx-auto flex flex-col items-center">
       {/* Main Authentication Card */}
       <div className="w-full bg-white rounded-3xl p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-100/80">
-        {/* Header with Prexyon Logo */}
+        {/* Header with Official Prexyon Logo */}
         <div className="flex flex-col items-center text-center">
-          <div className="flex items-center space-x-2.5 mb-5">
-            <img
-              src={prexyonSymbol}
-              alt="Prexyon"
-              className="w-9 h-9 object-contain"
-            />
-            <span className="text-2xl font-bold tracking-tight text-slate-900">
-              prexyon
-            </span>
+          <div className="mb-5 flex items-center justify-center">
+            <PrexyonLogo variant="light" className="h-9 sm:h-10 w-auto" />
           </div>
 
           <h2 className="text-2xl sm:text-[26px] font-bold text-slate-900 tracking-tight">
