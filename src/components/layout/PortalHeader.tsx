@@ -17,30 +17,9 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ currentRoute, onNavi
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
   const [editingOrgName, setEditingOrgName] = useState(organization.name);
+  const [notifications] = useState<{ id: string; title: string; desc: string; time: string; unread: boolean }[]>([]);
 
-  const demoNotifications = [
-    {
-      id: 'notif_1',
-      title: 'ArteCheck em testes alfa',
-      desc: 'O módulo de análise técnica está disponível para demonstração na sua conta.',
-      time: 'Há 2 horas',
-      unread: true,
-    },
-    {
-      id: 'notif_2',
-      title: 'Renovação da assinatura',
-      desc: 'Sua assinatura do Plano Profissional renova em 15 de setembro de 2026.',
-      time: 'Ontem',
-      unread: true,
-    },
-    {
-      id: 'notif_3',
-      title: 'Novo usuário adicionado',
-      desc: 'Mariana Lima foi convidada para o módulo de Pré-impressão.',
-      time: 'Há 3 dias',
-      unread: false,
-    },
-  ];
+  const unreadCount = notifications.filter((n) => n.unread).length;
 
   const handleSaveOrgName = (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,9 +92,11 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ currentRoute, onNavi
                 aria-label="Notificações"
               >
                 <Bell className="w-4.5 h-4.5" />
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#0066ff] text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-[#061226]">
-                  3
-                </span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-[#0066ff] text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-[#061226]">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
 
               {/* Settings Action */}
@@ -184,57 +165,65 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ currentRoute, onNavi
         maxWidth="md"
       >
         <div className="space-y-3">
-          {demoNotifications.map((n) => (
-            <div
-              key={n.id}
-              className={`p-3.5 rounded-xl border transition-all ${
-                n.unread ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-slate-200'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
-                <span className="text-[11px] text-slate-400 shrink-0">{n.time}</span>
+          {notifications.length > 0 ? (
+            notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`p-3.5 rounded-xl border transition-all ${
+                  n.unread ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-slate-200'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
+                  <span className="text-[11px] text-slate-400 shrink-0">{n.time}</span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">{n.desc}</p>
               </div>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">{n.desc}</p>
+            ))
+          ) : (
+            <div className="py-8 text-center text-xs text-slate-400">
+              Nenhuma nova notificação no momento.
             </div>
-          ))}
-          <div className="pt-2 flex justify-end">
+          )}
+          <div className="flex justify-end pt-2">
             <Button variant="secondary" size="sm" onClick={() => setIsNotificationsOpen(false)}>
-              Entendido
+              Fechar
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Organization Switcher / Edit Modal */}
+      {/* Organization Edit / Details Modal */}
       <Modal
         isOpen={isOrgModalOpen}
         onClose={() => setIsOrgModalOpen(false)}
-        title="Gerenciar Organização"
-        maxWidth="md"
+        title="Organização Ativa"
+        maxWidth="sm"
       >
         <form onSubmit={handleSaveOrgName} className="space-y-4">
-          <p className="text-xs sm:text-sm text-slate-600">
-            Nome da conta ou organização exibida no cabeçalho e nos relatórios de acesso:
-          </p>
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Nome da Organização / Empresa
+              Nome da Empresa / Razão Social
             </label>
             <input
               type="text"
-              required
               value={editingOrgName}
               onChange={(e) => setEditingOrgName(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0066ff]"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0066ff] focus:border-transparent transition-all"
+              placeholder="Nome da sua gráfica ou empresa"
+              required
             />
           </div>
-          <div className="flex justify-end gap-3 pt-3">
-            <Button type="button" variant="secondary" onClick={() => setIsOrgModalOpen(false)}>
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+            <span className="font-semibold text-slate-700 block mb-0.5">Identificador da Conta:</span>
+            <code className="font-mono text-[11px] text-slate-600 break-all">{organization.id}</code>
+          </div>
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+            <Button variant="secondary" size="sm" onClick={() => setIsOrgModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" variant="primary">
-              Salvar Alterações
+            <Button variant="primary" size="sm" type="submit">
+              Salvar alterações
             </Button>
           </div>
         </form>

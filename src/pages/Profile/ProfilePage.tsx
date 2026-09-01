@@ -10,13 +10,24 @@ interface ProfilePageProps {
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
   const { user, organization, updateUserProfile, setOrganizationName } = useAuth();
-  const [userName, setUserName] = useState(user?.name || 'Guilherme Vieira');
-  const [userEmail] = useState(user?.email || 'gui@exemplo.com');
+  const [userName, setUserName] = useState(user?.name || '');
+  const [userEmail, setUserEmail] = useState(user?.email || '');
   const [orgName, setOrgName] = useState(organization.name);
-  const [orgDoc, setOrgDoc] = useState(organization.document || '12.345.678/0001-90');
+  const [orgDoc, setOrgDoc] = useState(organization.document || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      setUserName(user.name || '');
+      setUserEmail(user.email || '');
+    }
+    if (organization) {
+      setOrgName(organization.name);
+      setOrgDoc(organization.document || '');
+    }
+  }, [user, organization]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

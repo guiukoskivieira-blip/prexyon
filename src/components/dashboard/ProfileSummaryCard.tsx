@@ -36,10 +36,10 @@ export const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
 
           <div>
             <h4 className="text-base font-bold text-slate-900 tracking-tight">
-              {user?.name || 'Guilherme Vieira'}
+              {user?.name || 'Usuário'}
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              {user?.email || 'gui@exemplo.com'}
+              {user?.email || ''}
             </p>
             <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 font-medium">
               <Building2 className="w-3.5 h-3.5 text-slate-400" />

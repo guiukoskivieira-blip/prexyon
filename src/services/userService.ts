@@ -2,39 +2,62 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { AuthUser } from '../types/auth';
 import { mockUser } from '../data/mockAccount';
 
+const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+
 export const userService = {
-  async getProfile(userId: string): Promise<Partial<AuthUser>> {
+  async getProfile(userId: string, emailFallback?: string): Promise<Partial<AuthUser>> {
     if (!isSupabaseConfigured()) {
-      return mockUser;
+      return isDev ? mockUser : {
+        id: userId,
+        name: emailFallback?.split('@')[0] || 'Usuário',
+        firstName: emailFallback?.split('@')[0] || 'Usuário',
+        lastName: '',
+        initials: (emailFallback || 'US').substring(0, 2).toUpperCase(),
+      };
     }
 
     try {
       const { data, error } = await (supabase.from('profiles') as any)
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) return mockUser;
+      if (error || !data) {
+        const defaultName = emailFallback?.split('@')[0] || 'Usuário';
+        return {
+          id: userId,
+          name: defaultName,
+          firstName: defaultName,
+          lastName: '',
+          initials: (emailFallback || 'US').substring(0, 2).toUpperCase(),
+        };
+      }
 
-      const initials = data.full_name
-        ? data.full_name
-            .split(' ')
-            .map((n: string) => n[0])
-            .join('')
-            .substring(0, 2)
-            .toUpperCase()
-        : 'US';
+      const fullName = data.full_name || emailFallback?.split('@')[0] || 'Usuário';
+      const initials = fullName
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
 
       return {
         id: data.id,
-        name: data.full_name || 'Usuário',
-        firstName: data.full_name ? data.full_name.split(' ')[0] : 'Usuário',
-        lastName: data.full_name ? data.full_name.split(' ').slice(1).join(' ') : '',
+        name: fullName,
+        firstName: fullName.split(' ')[0] || 'Usuário',
+        lastName: fullName.split(' ').slice(1).join(' ') || '',
         avatarUrl: data.avatar_url || undefined,
-        initials,
+        initials: initials || 'US',
       };
     } catch {
-      return mockUser;
+      const defaultName = emailFallback?.split('@')[0] || 'Usuário';
+      return {
+        id: userId,
+        name: defaultName,
+        firstName: defaultName,
+        lastName: '',
+        initials: (emailFallback || 'US').substring(0, 2).toUpperCase(),
+      };
     }
   },
 
@@ -45,11 +68,11 @@ export const userService = {
 
     try {
       const { error } = await (supabase.from('profiles') as any)
-        .update({
+        .upsert({
+          id: userId,
           full_name: fullName,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+        });
 
       if (error) return { success: false, error: error.message };
       return { success: true };

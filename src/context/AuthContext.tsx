@@ -8,9 +8,47 @@ import { mockProducts } from '../data/mockProducts';
 import { mockSubscription } from '../data/mockSubscription';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { organizationService } from '../services/organizationService';
+import { subscriptionService } from '../services/subscriptionService';
 import { invitesService, InviteRecord } from '../services/invitesService';
 import { userService } from '../services/userService';
 import { can, PermissionCheckResult, PermissionEngineContext } from '../services/permissionEngine';
+
+const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+
+const defaultEmptyOrg: Organization = {
+  id: '',
+  name: 'Carregando organização...',
+  tradeName: 'Carregando organização...',
+  status: 'active',
+  createdAt: '',
+  updatedAt: '',
+};
+
+const defaultEmptySubscription: SubscriptionDetails = {
+  planId: '',
+  planCode: 'orcagraf',
+  planName: 'Sem assinatura ativa',
+  status: 'inactive',
+  statusLabel: 'Inativo',
+  billingCycle: 'monthly',
+  monthlyPriceCents: 0,
+  annualPriceCents: 0,
+  priceFormatted: 'R$ 0,00',
+  nextRenewalFormatted: '—',
+  nextRenewalDate: '',
+  cancelAtPeriodEnd: false,
+  includedProducts: [
+    { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: false, status: 'inactive' },
+    { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
+    { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
+  ],
+  userSeats: {
+    total: 3,
+    used: 1,
+    extra: 0,
+    extraUserPriceCents: 1290,
+  },
+};
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -38,17 +76,88 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [organization, setOrganization] = useState<Organization>(mockOrganization);
-  const [subscription] = useState<SubscriptionDetails>(mockSubscription);
+  const [organization, setOrganization] = useState<Organization>(isSupabaseConfigured() ? defaultEmptyOrg : (isDev ? mockOrganization : defaultEmptyOrg));
+  const [subscription, setSubscription] = useState<SubscriptionDetails>(isSupabaseConfigured() ? defaultEmptySubscription : (isDev ? mockSubscription : defaultEmptySubscription));
   const [products, setProducts] = useState<ProductInfo[]>(mockProducts);
-  const [members, setMembers] = useState<AccountMember[]>(mockMembers);
+  const [members, setMembers] = useState<AccountMember[]>(isSupabaseConfigured() ? [] : (isDev ? mockMembers : []));
   const [invites, setInvites] = useState<InviteRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const isBackendConnected = isSupabaseConfigured();
 
-  // Verifica se está em ambiente de desenvolvimento Vite
-  const isDevMode = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+  // Helper para sincronizar status dos produtos com a assinatura real
+  const syncProductsWithSubscription = useCallback((sub: SubscriptionDetails) => {
+    setProducts((prev) =>
+      prev.map((prod) => {
+        const subProd = sub.includedProducts.find((p) => p.id === prod.id);
+        const isSubscribed = Boolean(subProd?.includedInPlan && (sub.status === 'active' || sub.status === 'trialing'));
+        return {
+          ...prod,
+          status: isSubscribed ? ('active' as ProductStatus) : ('inactive' as ProductStatus),
+          statusLabel: isSubscribed ? 'Ativo' : 'Não contratado',
+          ctaText: isSubscribed ? `Abrir ${prod.name}` : `Assinar ${prod.name}`,
+          isSubscribed,
+        };
+      })
+    );
+  }, []);
+
+  // Helper para carregar todos os dados reais do usuário autenticado
+  const loadUserData = useCallback(async (userId: string, email: string) => {
+    try {
+      const [profile, org] = await Promise.all([
+        userService.getProfile(userId, email),
+        organizationService.getUserOrganization(userId),
+      ]);
+
+      const effectiveOrg = org || defaultEmptyOrg;
+      setOrganization(effectiveOrg);
+
+      const authUser: AuthUser = {
+        id: userId,
+        name: profile.name || email.split('@')[0] || 'Usuário',
+        firstName: profile.firstName || email.split('@')[0] || 'Usuário',
+        lastName: profile.lastName || '',
+        email: email,
+        avatarUrl: profile.avatarUrl,
+        initials: profile.initials || 'US',
+        role: 'owner',
+        accountId: effectiveOrg.id,
+      };
+      setUser(authUser);
+
+      if (effectiveOrg.id) {
+        const [sub, mems] = await Promise.all([
+          subscriptionService.fetchOrganizationSubscription(effectiveOrg.id),
+          organizationService.getMembers(effectiveOrg.id),
+        ]);
+
+        setSubscription(sub);
+        syncProductsWithSubscription(sub);
+
+        if (mems && mems.length > 0) {
+          setMembers(mems);
+        } else {
+          // Se ainda não existirem outros membros, cria o registro do próprio usuário
+          setMembers([
+            {
+              id: `mem_${userId}`,
+              userId: userId,
+              name: authUser.name,
+              email: authUser.email,
+              initials: authUser.initials,
+              role: 'owner',
+              status: 'active',
+              assignedProducts: sub.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId),
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar dados do usuário:', err);
+    }
+  }, [syncProductsWithSubscription]);
 
   // Load session on startup
   useEffect(() => {
@@ -63,25 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (session?.user && mounted) {
-            const profile = await userService.getProfile(session.user.id);
-            const authUser: AuthUser = {
-              id: session.user.id,
-              name: profile.name || session.user.email?.split('@')[0] || 'Usuário',
-              firstName: profile.firstName || session.user.email?.split('@')[0] || 'Usuário',
-              lastName: profile.lastName || '',
-              email: session.user.email || '',
-              avatarUrl: profile.avatarUrl,
-              initials: profile.initials || 'US',
-              role: 'owner',
-              accountId: mockOrganization.id,
-            };
-            setUser(authUser);
-            const org = await organizationService.getOrganization();
-            setOrganization(org);
-            const mems = await organizationService.getMembers(org.id);
-            setMembers(mems);
-          } else if (mounted && isDevMode) {
-            // Em DESENVOLVIMENTO: Restaura sessão de teste local se salva
+            await loadUserData(session.user.id, session.user.email || '');
+          } else if (mounted && isDev) {
             const localSaved = localStorage.getItem('prexyon_demo_auth');
             if (localSaved === 'true') {
               setUser(mockUser);
@@ -89,26 +181,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err) {
           console.warn('Falha na inicialização do Supabase:', err);
-          if (isDevMode && mounted) {
+          if (isDev && mounted) {
             const localSaved = localStorage.getItem('prexyon_demo_auth');
             if (localSaved === 'true') {
               setUser(mockUser);
             }
-          } else if (!isDevMode && mounted) {
-            // PRODUÇÃO: Fail-closed estrito
+          } else if (!isDev && mounted) {
             setAuthError('Falha ao conectar com o serviço central de autenticação.');
           }
         }
       } else {
-        // Supabase não configurado
-        if (isDevMode) {
-          // Modo desenvolvimento local
+        if (isDev) {
           const localSaved = localStorage.getItem('prexyon_demo_auth');
           if (localSaved === 'true' || localSaved === null) {
             setUser(mockUser);
           }
         } else {
-          // PRODUÇÃO: Fail-closed (proíbe sessão simulada)
           setAuthError('Serviço de autenticação não configurado em ambiente de produção.');
           setUser(null);
           localStorage.removeItem('prexyon_demo_auth');
@@ -120,28 +208,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // Listen to Supabase auth events if configured
     if (isBackendConnected) {
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          const profile = await userService.getProfile(session.user.id);
-          const authUser: AuthUser = {
-            id: session.user.id,
-            name: profile.name || session.user.email?.split('@')[0] || 'Usuário',
-            firstName: profile.firstName || session.user.email?.split('@')[0] || 'Usuário',
-            lastName: profile.lastName || '',
-            email: session.user.email || '',
-            avatarUrl: profile.avatarUrl,
-            initials: profile.initials || 'US',
-            role: 'owner',
-            accountId: organization.id,
-          };
-          setUser(authUser);
+          await loadUserData(session.user.id, session.user.email || '');
           localStorage.setItem('prexyon_demo_auth', 'true');
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
+          setOrganization(defaultEmptyOrg);
+          setSubscription(defaultEmptySubscription);
+          setMembers([]);
+          syncProductsWithSubscription(defaultEmptySubscription);
           localStorage.removeItem('prexyon_demo_auth');
         }
       });
@@ -155,7 +234,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       mounted = false;
     };
-  }, [isBackendConnected, isDevMode, organization.id]);
+  }, [isBackendConnected, loadUserData, syncProductsWithSubscription]);
 
   const login = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
@@ -179,19 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (data.user) {
-          const profile = await userService.getProfile(data.user.id);
-          const authUser: AuthUser = {
-            id: data.user.id,
-            name: profile.name || data.user.email?.split('@')[0] || 'Usuário',
-            firstName: profile.firstName || data.user.email?.split('@')[0] || 'Usuário',
-            lastName: profile.lastName || '',
-            email: data.user.email || '',
-            avatarUrl: profile.avatarUrl,
-            initials: profile.initials || 'US',
-            role: 'owner',
-            accountId: organization.id,
-          };
-          setUser(authUser);
+          await loadUserData(data.user.id, data.user.email || credentials.email);
           localStorage.setItem('prexyon_demo_auth', 'true');
           setIsLoading(false);
           return { success: true };
@@ -202,15 +269,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Se em produção e sem Supabase -> Fail Closed
-    if (!isDevMode) {
+    if (!isDev) {
       setIsLoading(false);
       const errorMsg = 'Autenticação real obrigatória em ambiente de produção.';
       setAuthError(errorMsg);
       return { success: false, error: errorMsg };
     }
 
-    // Fallback permitido apenas em desenvolvimento
+    // Fallback permitido apenas em desenvolvimento sem backend
     await new Promise((resolve) => setTimeout(resolve, 500));
     const simulatedUser: AuthUser = {
       ...mockUser,
@@ -234,6 +300,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     setUser(null);
+    setOrganization(defaultEmptyOrg);
+    setSubscription(defaultEmptySubscription);
+    setMembers([]);
+    syncProductsWithSubscription(defaultEmptySubscription);
     localStorage.removeItem('prexyon_demo_auth');
     setIsLoading(false);
   };
@@ -253,11 +323,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    if (!isDevMode) {
+    if (!isDev) {
       return { success: false, error: 'Serviço de recuperação indisponível em produção.' };
     }
 
-    // Simulação apenas em dev
     await new Promise((resolve) => setTimeout(resolve, 400));
     return { success: true };
   };
@@ -292,8 +361,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const setOrganizationName = async (name: string): Promise<{ success: boolean; error?: string }> => {
-    setOrganization((prev) => ({ ...prev, name }));
-    return organizationService.updateOrganization(organization.id, { name });
+    setOrganization((prev) => ({ ...prev, name, tradeName: name }));
+    if (organization.id) {
+      return organizationService.updateOrganization(organization.id, { name });
+    }
+    return { success: true };
   };
 
   const updateUserProfile = async (fullName: string): Promise<{ success: boolean; error?: string }> => {
@@ -316,7 +388,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     assignedProducts: ProductId[],
     role: 'admin' | 'member' | 'guest' = 'member'
   ): Promise<{ success: boolean; error?: string }> => {
-    if (!user) return { success: false, error: 'Usuário não autenticado.' };
+    if (!user || !organization.id) return { success: false, error: 'Usuário ou organização não autenticados.' };
 
     const res = await invitesService.createInvite({
       organizationId: organization.id,
@@ -350,6 +422,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     memberId: string,
     newStatus: 'active' | 'suspended'
   ): Promise<{ success: boolean; error?: string }> => {
+    if (!organization.id) return { success: false, error: 'Organização não identificada.' };
+
     const result = await organizationService.updateMemberStatus(
       organization.id,
       memberId,
@@ -377,7 +451,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         initials: user?.initials || 'US',
         role: (user?.role || 'owner') as any,
         status: 'active',
-        assignedProducts: ['orcagraf', 'arteflow', 'artecheck'],
+        assignedProducts: subscription.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId),
         createdAt: new Date().toISOString(),
       };
 

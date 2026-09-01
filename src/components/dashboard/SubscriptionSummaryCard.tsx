@@ -5,6 +5,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import orcagrafSymbol from '../../assets/branding/orcagraf-symbol.png';
 import arteflowSymbol from '../../assets/branding/arteflow-symbol.png';
+import artecheckSymbol from '../../assets/branding/artecheck-symbol.png';
 
 interface SubscriptionSummaryCardProps {
   onViewSubscription: () => void;
@@ -14,6 +15,20 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
   onViewSubscription
 }) => {
   const { subscription } = useAuth();
+  const includedProducts = subscription.includedProducts.filter((p) => p.includedInPlan);
+
+  const getSymbol = (id: string) => {
+    switch (id) {
+      case 'orcagraf':
+        return orcagrafSymbol;
+      case 'arteflow':
+        return arteflowSymbol;
+      case 'artecheck':
+        return artecheckSymbol;
+      default:
+        return orcagrafSymbol;
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-[#e2e8f0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-6 flex flex-col justify-between h-full transition-all duration-200 hover:shadow-[0_8px_20px_rgba(0,0,0,0.05)]">
@@ -45,22 +60,20 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
             Produtos incluídos
           </span>
           <div className="flex flex-col space-y-2">
-            <div className="flex items-center space-x-2">
-              <img
-                src={orcagrafSymbol}
-                alt="OrçaGraf"
-                className="w-5 h-5 object-contain"
-              />
-              <span className="text-xs font-semibold text-slate-800">OrçaGraf</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <img
-                src={arteflowSymbol}
-                alt="ArteFlow"
-                className="w-5 h-5 object-contain"
-              />
-              <span className="text-xs font-semibold text-slate-800">ArteFlow</span>
-            </div>
+            {includedProducts.length > 0 ? (
+              includedProducts.map((prod) => (
+                <div key={prod.id} className="flex items-center space-x-2">
+                  <img
+                    src={getSymbol(prod.id)}
+                    alt={prod.name}
+                    className="w-5 h-5 object-contain"
+                  />
+                  <span className="text-xs font-semibold text-slate-800">{prod.name}</span>
+                </div>
+              ))
+            ) : (
+              <span className="text-xs text-slate-400 font-medium">Nenhum produto ativo</span>
+            )}
           </div>
         </div>
 

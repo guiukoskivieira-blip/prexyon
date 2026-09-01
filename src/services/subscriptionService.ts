@@ -2,6 +2,8 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { PrexyonPlan, SubscriptionDetails, SubscriptionPlanCode, SubscriptionBillingCycle } from '../types/subscription';
 import { ProductId } from '../types/product';
 
+const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
+
 export const OFFICIAL_PLANS_FALLBACK: PrexyonPlan[] = [
   {
     id: 'plan_orcagraf',
@@ -131,34 +133,45 @@ export const subscriptionService = {
   },
 
   async fetchOrganizationSubscription(organizationId: string): Promise<SubscriptionDetails> {
+    const inactiveState: SubscriptionDetails = {
+      planId: '',
+      planCode: 'orcagraf',
+      planName: 'Nenhum plano ativo',
+      status: 'inactive',
+      statusLabel: 'Inativo',
+      billingCycle: 'monthly',
+      monthlyPriceCents: 0,
+      annualPriceCents: 0,
+      priceFormatted: 'R$ 0,00',
+      nextRenewalFormatted: '—',
+      nextRenewalDate: '',
+      cancelAtPeriodEnd: false,
+      includedProducts: [
+        { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: false, status: 'inactive' },
+        { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
+        { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
+      ],
+      userSeats: {
+        total: 3,
+        used: 1,
+        extra: 0,
+        extraUserPriceCents: 1290,
+      },
+    };
+
     if (!isSupabaseConfigured()) {
-      // Mock de desenvolvimento
-      const defaultPlan = OFFICIAL_PLANS_FALLBACK[4]; // Prexyon Completo
-      return {
-        planId: defaultPlan.id,
-        planCode: defaultPlan.code,
-        planName: defaultPlan.name,
+      return isDev ? {
+        ...inactiveState,
+        planId: OFFICIAL_PLANS_FALLBACK[0].id,
+        planName: OFFICIAL_PLANS_FALLBACK[0].name,
         status: 'active',
         statusLabel: 'Ativo',
-        billingCycle: 'monthly',
-        monthlyPriceCents: defaultPlan.monthlyPriceCents,
-        annualPriceCents: defaultPlan.annualPriceCents,
-        priceFormatted: formatCentsToBrl(defaultPlan.monthlyPriceCents),
-        nextRenewalFormatted: '15 set. 2026',
-        nextRenewalDate: '2026-09-15T00:00:00Z',
-        cancelAtPeriodEnd: false,
         includedProducts: [
           { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: true, status: 'active' },
-          { id: 'arteflow', name: 'ArteFlow', includedInPlan: true, status: 'active' },
-          { id: 'artecheck', name: 'ArteCheck', includedInPlan: true, status: 'active' },
+          { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
+          { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
         ],
-        userSeats: {
-          total: 3,
-          used: 2,
-          extra: 0,
-          extraUserPriceCents: 1290,
-        },
-      };
+      } : inactiveState;
     }
 
     try {
@@ -167,33 +180,7 @@ export const subscriptionService = {
       });
 
       if (error || !data || !data.has_subscription) {
-        // Fallback default para OrçaGraf ativo
-        const orcagrafPlan = OFFICIAL_PLANS_FALLBACK[0];
-        return {
-          planId: orcagrafPlan.id,
-          planCode: orcagrafPlan.code,
-          planName: orcagrafPlan.name,
-          status: 'active',
-          statusLabel: 'Ativo',
-          billingCycle: 'monthly',
-          monthlyPriceCents: orcagrafPlan.monthlyPriceCents,
-          annualPriceCents: orcagrafPlan.annualPriceCents,
-          priceFormatted: formatCentsToBrl(orcagrafPlan.monthlyPriceCents),
-          nextRenewalFormatted: '30 dias',
-          nextRenewalDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-          cancelAtPeriodEnd: false,
-          includedProducts: [
-            { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: true, status: 'active' },
-            { id: 'arteflow', name: 'ArteFlow', includedInPlan: false, status: 'inactive' },
-            { id: 'artecheck', name: 'ArteCheck', includedInPlan: false, status: 'inactive' },
-          ],
-          userSeats: {
-            total: 3,
-            used: 1,
-            extra: 0,
-            extraUserPriceCents: 1290,
-          },
-        };
+        return inactiveState;
       }
 
       const includedProds: ProductId[] = data.included_products || [];
@@ -209,12 +196,12 @@ export const subscriptionService = {
         monthlyPriceCents: data.monthly_price_cents,
         annualPriceCents: data.annual_price_cents,
         priceFormatted: `${formatCentsToBrl(currentPriceCents)}/${data.billing_interval === 'annual' ? 'ano' : 'mês'}`,
-        nextRenewalFormatted: new Date(data.current_period_end).toLocaleDateString('pt-BR', {
+        nextRenewalFormatted: data.current_period_end ? new Date(data.current_period_end).toLocaleDateString('pt-BR', {
           day: '2-digit',
           month: 'short',
           year: 'numeric',
-        }),
-        nextRenewalDate: data.current_period_end,
+        }) : '—',
+        nextRenewalDate: data.current_period_end || '',
         cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
         pendingDowngradePlanId: data.pending_downgrade_plan_id,
         includedProducts: [
@@ -238,39 +225,14 @@ export const subscriptionService = {
           },
         ],
         userSeats: {
-          total: data.included_users,
-          used: data.active_members_count,
-          extra: data.extra_users,
-          extraUserPriceCents: data.extra_user_price_cents,
+          total: data.included_users || 3,
+          used: data.active_members_count || 1,
+          extra: data.extra_users || 0,
+          extraUserPriceCents: data.extra_user_price_cents || 1290,
         },
       };
     } catch {
-      const fallback = OFFICIAL_PLANS_FALLBACK[4];
-      return {
-        planId: fallback.id,
-        planCode: fallback.code,
-        planName: fallback.name,
-        status: 'active',
-        statusLabel: 'Ativo',
-        billingCycle: 'monthly',
-        monthlyPriceCents: fallback.monthlyPriceCents,
-        annualPriceCents: fallback.annualPriceCents,
-        priceFormatted: formatCentsToBrl(fallback.monthlyPriceCents),
-        nextRenewalFormatted: '15 set. 2026',
-        nextRenewalDate: '2026-09-15T00:00:00Z',
-        cancelAtPeriodEnd: false,
-        includedProducts: [
-          { id: 'orcagraf', name: 'OrçaGraf', includedInPlan: true, status: 'active' },
-          { id: 'arteflow', name: 'ArteFlow', includedInPlan: true, status: 'active' },
-          { id: 'artecheck', name: 'ArteCheck', includedInPlan: true, status: 'active' },
-        ],
-        userSeats: {
-          total: 3,
-          used: 2,
-          extra: 0,
-          extraUserPriceCents: 1290,
-        },
-      };
+      return inactiveState;
     }
   },
 };
