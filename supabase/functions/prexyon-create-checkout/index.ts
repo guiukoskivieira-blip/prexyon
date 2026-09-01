@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const ALLOWED_ORIGINS = [
+  'https://prexyon-production.up.railway.app',
   'https://portal.prexyon.com',
   'https://orcagraf.prexyon.com',
   'http://localhost:5173',
@@ -128,7 +129,7 @@ serve(async (req) => {
 
     const priceCents = billing_interval === 'annual' ? plan.annual_price_cents : plan.monthly_price_cents;
     const priceBrl = priceCents / 100;
-    const portalUrl = Deno.env.get('PORTAL_URL') || 'https://portal.prexyon.com';
+    const portalUrl = Deno.env.get('PORTAL_URL') || 'https://prexyon-production.up.railway.app';
 
     // 5. Preservação Transacional em Upgrade: Obter assinatura anterior
     const { data: activePaymentSub } = await supabaseAdmin

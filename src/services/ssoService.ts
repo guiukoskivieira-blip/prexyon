@@ -8,6 +8,7 @@ const ALLOWLIST_REDIRECTS = [
   'http://localhost:5173/auth/prexyon',
   'http://localhost:3000/auth/prexyon',
   'http://localhost:5174/auth/prexyon',
+  ...(ORCAGRAF_PROD_URL ? [`${ORCAGRAF_PROD_URL}/auth/prexyon`] : []),
 ];
 
 async function computeSha256(message: string): Promise<string> {

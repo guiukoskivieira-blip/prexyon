@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const ALLOWED_ORIGINS = [
+  'https://prexyon-production.up.railway.app',
   'http://localhost:5173',
   'http://localhost:3000',
   'https://portal.prexyon.com',

@@ -59,7 +59,7 @@ Entitlements liberados imediatamente no Portal Prexyon e via SSO no OrçaGraf
 ```env
 VITE_SUPABASE_URL=https://<ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
-VITE_PREXYON_PORTAL_URL=https://portal.prexyon.com
+VITE_PREXYON_PORTAL_URL=https://prexyon-production.up.railway.app # (ou domínio customizado futuro)
 ```
 
 ### Variáveis Secretas (Edge Functions / Supabase Secrets)
@@ -67,7 +67,7 @@ VITE_PREXYON_PORTAL_URL=https://portal.prexyon.com
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
 MERCADO_PAGO_ACCESS_TOKEN=TEST-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx # (ou APP_USR- em prod)
 MERCADO_PAGO_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-PORTAL_URL=https://portal.prexyon.com
+PORTAL_URL=https://prexyon-production.up.railway.app # (ou domínio customizado futuro)
 ```
 
 ---
