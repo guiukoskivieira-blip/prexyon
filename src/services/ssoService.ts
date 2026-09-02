@@ -12,20 +12,6 @@ const ALLOWLIST_REDIRECTS = [
   ...(ORCAGRAF_PROD_URL ? [`${ORCAGRAF_PROD_URL}/auth/prexyon`] : []),
 ];
 
-async function computeSha256(message: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-function generateRandomCode(): string {
-  const randomBytes = new Uint8Array(32);
-  crypto.getRandomValues(randomBytes);
-  return Array.from(randomBytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 export interface SsoStartResult {
   success: boolean;
@@ -82,27 +68,22 @@ export const ssoService = {
     }
 
     try {
-      // 1. Gerar Authorization Code criptograficamente seguro (32 bytes / 256 bits de entropia)
-      const rawCode = generateRandomCode();
-      const codeHash = await computeSha256(rawCode);
-
-      // 2. Chamar RPC segura no Supabase (executa com SECURITY DEFINER e validação de entitlement)
+      // 1. Chamar RPC segura no Supabase (executa com SECURITY DEFINER, vincula identidade a auth.uid())
       const { data, error } = await (supabase.rpc as any)('prexyon_generate_sso_code', {
         p_organization_id: organizationId,
         p_product_code: productCode,
-        p_code_hash: codeHash,
-        p_redirect_uri: redirectUri,
-        p_ttl_seconds: 45,
       });
 
       if (error) {
         let userFriendlyMsg = 'Não foi possível iniciar o acesso ao software. Tente novamente.';
-        if (error.message.includes('assinatura')) {
-          userFriendlyMsg = 'Sua organização não possui uma assinatura ativa do OrçaGraf.';
-        } else if (error.message.includes('acesso')) {
-          userFriendlyMsg = 'Seu acesso ao OrçaGraf não está habilitado.';
-        } else if (error.message.includes('limite')) {
-          userFriendlyMsg = 'Muitas tentativas em sequência. Aguarde alguns segundos.';
+        if (error.message.includes('PRODUCT_NOT_SUBSCRIBED') || error.message.includes('assinatura')) {
+          userFriendlyMsg = 'Sua organização não possui acesso contratado a este software.';
+        } else if (error.message.includes('USER_PRODUCT_ACCESS_DENIED') || error.message.includes('USER_PRODUCT_PERMISSION_DENIED') || error.message.includes('acesso')) {
+          userFriendlyMsg = 'Seu acesso a este software não está habilitado pela administração.';
+        } else if (error.message.includes('ORGANIZATION_INACTIVE')) {
+          userFriendlyMsg = 'A organização está inativa ou suspensa.';
+        } else if (error.message.includes('MEMBERSHIP_INACTIVE')) {
+          userFriendlyMsg = 'Seu usuário está inativo ou bloqueado nesta organização.';
         }
 
         return {
@@ -111,9 +92,9 @@ export const ssoService = {
         };
       }
 
-      // 3. Construir URL autorizada transmitindo SOMENTE o Authorization Code (sem tokens ou dados sensíveis na URL)
+      // 2. Construir URL autorizada transmitindo SOMENTE o Authorization Code gerado pelo backend
       const destination = new URL(redirectUri);
-      destination.searchParams.set('code', rawCode);
+      destination.searchParams.set('code', (data as any)?.code);
       destination.searchParams.set('org', organizationId);
 
       return {

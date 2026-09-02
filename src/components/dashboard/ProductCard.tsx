@@ -6,6 +6,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { ssoService } from '../../services/ssoService';
+import { canManagePermissions, canManageSubscription } from '../../security/routeAuthorization';
 
 interface ProductCardProps {
   product: ProductInfo;
@@ -18,7 +19,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onNavigateToPermissions,
   onNavigateToSubscription
 }) => {
-  const { organization, checkPermission } = useAuth();
+  const { user, organization, checkPermission } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isLaunchingSso, setIsLaunchingSso] = useState(false);
@@ -38,9 +39,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const handleLaunchProduct = async () => {
     setSsoErrorMessage(null);
 
-    // Se o produto não estiver contratado/ativo, direciona para a página de contratação
+    // Se o produto não estiver contratado/ativo, direciona para a página de contratação (se tiver permissão)
     if (!product.isSubscribed || product.status !== 'active') {
-      if (onNavigateToSubscription) {
+      if (canManageSubscription(user?.role) && onNavigateToSubscription) {
         onNavigateToSubscription();
       } else {
         setIsDetailsOpen(true);
@@ -200,16 +201,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <span>Ver detalhes do módulo</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    if (onNavigateToPermissions) onNavigateToPermissions(product.id);
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full flex items-center px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 gap-2.5"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Permissões de usuários</span>
-                </button>
+                {canManagePermissions(user?.role) && (
+                  <button
+                    onClick={() => {
+                      if (onNavigateToPermissions) onNavigateToPermissions(product.id);
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full flex items-center px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 gap-2.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Permissões de usuários</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

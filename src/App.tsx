@@ -12,9 +12,10 @@ import { ProfilePage } from './pages/Profile/ProfilePage';
 import { SettingsPage } from './pages/Settings/SettingsPage';
 import { Loader2 } from 'lucide-react';
 import { PrexyonLogo } from './components/ui/PrexyonLogo';
+import { canAccessRoute } from './security/routeAuthorization';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, organization, refreshUserData } = useAuth();
+  const { user, isAuthenticated, isLoading, organization, refreshUserData } = useAuth();
 
   // Preservação de rota e token de convite em memória
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
@@ -128,8 +129,27 @@ const AppContent: React.FC = () => {
     navigate('/app');
   }
 
+  // Route Guard Centralizado: Se o papel do usuário não tiver permissão para a rota solicitada, redireciona para /app
+  if (!canAccessRoute(user?.role, currentRoute)) {
+    navigate('/app');
+  }
+
   // Precedência 2: Autenticado com Organização -> Shell do Portal
   const renderSubPage = () => {
+    // Defesa em profundidade no renderizador
+    if (!canAccessRoute(user?.role, currentRoute)) {
+      return (
+        <DashboardPage
+          onNavigate={(route) => {
+            if (route === '/app/permissoes') {
+              setSelectedProductIdForPerms('orcagraf');
+            }
+            navigate(route);
+          }}
+        />
+      );
+    }
+
     switch (currentRoute) {
       case '/app/assinatura':
         return <SubscriptionPage onBack={() => navigate('/app')} />;

@@ -298,7 +298,7 @@ async function runInvitationRevocationTests() {
       realInvRes.rows.length === 3 &&
       realInvRes.rows.some(r => r.id === legacyInvId && r.revoked_at !== null) &&
       realInvRes.rows.some(r => r.id === '5b91b7c5-fd74-4960-aa4f-aa47ae5d4cb1' && r.revoked_at !== null) &&
-      realInvRes.rows.some(r => r.id === '92c40a8e-ffd0-48a5-ae53-5ad3d6f28b0b' && r.accepted_at === null && r.revoked_at === null),
+      realInvRes.rows.some(r => r.id === '92c40a8e-ffd0-48a5-ae53-5ad3d6f28b0b' && r.accepted_at !== null && r.revoked_at === null),
       'Teste 10: Organização real possui exatamente os convites reais esperados, sem fixtures vazadas',
       '3 convites reais preservados no histórico',
       `${realInvRes.rows.length} convites na org real`

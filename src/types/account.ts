@@ -1,5 +1,7 @@
 export type AccountType = 'organization' | 'company' | 'subscriber';
 
+export type UserRole = 'owner' | 'admin' | 'member' | 'guest';
+
 export interface Organization {
   id: string;
   name: string;
@@ -9,7 +11,7 @@ export interface Organization {
   segment?: string;
   logoUrl?: string;
   status?: 'active' | 'suspended' | 'archived';
-  userRole?: 'owner' | 'admin' | 'member' | 'guest';
+  userRole?: UserRole;
   createdAt: string;
   updatedAt: string;
 }

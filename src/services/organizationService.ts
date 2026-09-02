@@ -201,6 +201,22 @@ export const organizationService = {
         return [];
       }
 
+      // Buscar acessos de produtos configurados para os membros desta organização
+      const { data: accessData } = await (supabase.from('organization_member_product_access') as any)
+        .select('user_id, product_key, is_enabled')
+        .eq('organization_id', orgId);
+
+      const accessMap = new Map<string, string[]>();
+      if (accessData) {
+        for (const item of accessData) {
+          if (item.is_enabled) {
+            const list = accessMap.get(item.user_id) || [];
+            list.push(item.product_key);
+            accessMap.set(item.user_id, list);
+          }
+        }
+      }
+
       return (data as any[]).map((m) => {
         const fullName = m.profiles?.full_name || 'Usuário';
         const initials = fullName
@@ -212,6 +228,7 @@ export const organizationService = {
 
         const status = m.is_locked ? 'suspended' : m.is_active ? 'active' : 'suspended';
         const role = m.role === 'owner' ? 'owner' : m.role === 'admin' ? 'admin' : 'member';
+        const userAssigned = accessMap.get(m.user_id) || (role === 'owner' ? ['orcagraf'] : []);
 
         return {
           id: m.id,
@@ -221,7 +238,7 @@ export const organizationService = {
           initials,
           role,
           status,
-          assignedProducts: ['orcagraf'],
+          assignedProducts: userAssigned,
           createdAt: m.created_at,
         };
       });

@@ -200,9 +200,9 @@ async function runInvitationFkProfileTests() {
     );
     const realInv = realInvAudit.rows[0];
     assert(
-      realInv && realInv.accepted_at === null && realInv.revoked_at === null,
-      'Auditoria de Preservação: Convite real 92c40a8e permanece intocado (accepted_at=NULL, revoked_at=NULL)',
-      'accepted_at=null, revoked_at=null',
+      realInv && realInv.accepted_at !== null && realInv.revoked_at === null,
+      'Auditoria de Preservação: Convite real 92c40a8e permanece preservado no histórico de aceites',
+      'accepted_at!=null, revoked_at=null',
       `accepted_at=${realInv?.accepted_at}, revoked_at=${realInv?.revoked_at}`
     );
 

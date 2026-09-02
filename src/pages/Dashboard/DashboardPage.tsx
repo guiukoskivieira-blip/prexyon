@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { canManageSubscription } from '../../security/routeAuthorization';
 import { GreetingHeader } from '../../components/dashboard/GreetingHeader';
 import { ProductCard } from '../../components/dashboard/ProductCard';
 import { SubscriptionSummaryCard } from '../../components/dashboard/SubscriptionSummaryCard';
@@ -10,7 +11,7 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
-  const { products } = useAuth();
+  const { user, products } = useAuth();
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -45,11 +46,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
       {/* Section: Resumo de Assinatura & Perfil da Conta */}
       <section className="pt-2">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-          {/* Subscription Summary Card */}
-          <SubscriptionSummaryCard
-            onViewSubscription={() => onNavigate('/app/assinatura')}
-          />
+        <div className={`grid grid-cols-1 ${canManageSubscription(user?.role) ? 'lg:grid-cols-2' : ''} gap-5 sm:gap-6`}>
+          {/* Subscription Summary Card (Apenas para Owner/Admin) */}
+          {canManageSubscription(user?.role) && (
+            <SubscriptionSummaryCard
+              onViewSubscription={() => onNavigate('/app/assinatura')}
+            />
+          )}
 
           {/* Profile & Organization Card */}
           <ProfileSummaryCard

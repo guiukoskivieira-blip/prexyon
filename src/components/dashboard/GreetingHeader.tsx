@@ -2,6 +2,7 @@ import React from 'react';
 import { CreditCard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/Button';
+import { canManageSubscription } from '../../security/routeAuthorization';
 
 interface GreetingHeaderProps {
   onManageSubscription: () => void;
@@ -35,17 +36,19 @@ export const GreetingHeader: React.FC<GreetingHeaderProps> = ({ onManageSubscrip
         </p>
       </div>
 
-      <div className="shrink-0">
-        <Button
-          variant="outline"
-          size="md"
-          onClick={onManageSubscription}
-          leftIcon={<CreditCard className="w-4 h-4 text-slate-700" />}
-          className="border-slate-300 font-semibold hover:border-slate-400 text-slate-800 shadow-2xs"
-        >
-          Gerenciar assinatura
-        </Button>
-      </div>
+      {canManageSubscription(user?.role) && (
+        <div className="shrink-0">
+          <Button
+            variant="outline"
+            size="md"
+            onClick={onManageSubscription}
+            leftIcon={<CreditCard className="w-4 h-4 text-slate-700" />}
+            className="border-slate-300 font-semibold hover:border-slate-400 text-slate-800 shadow-2xs"
+          >
+            Gerenciar assinatura
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

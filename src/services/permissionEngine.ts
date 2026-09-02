@@ -33,6 +33,7 @@ export interface PermissionEngineContext {
   organization: Organization | null;
   member: AccountMember | null;
   subscription: SubscriptionDetails | null;
+  effectiveProducts?: ProductId[];
   userProductAccess: Record<ProductId, boolean>;
   userProductRoles?: Partial<Record<ProductId, ProductRoleState>>;
   userPermissionOverrides?: Record<string, 'allow' | 'deny'>; // key: `${productId}:${permissionKey}`
@@ -92,27 +93,27 @@ export function can(
   }
 
   // 5. Bypass do Dono (Owner da conta possui privilégio administrativo geral)
-  if (member.role === 'owner' || user.role === 'owner') {
-    // Mesmo o owner respeita se o produto estiver totalmente ausente da assinatura
-    const subProduct = subscription?.includedProducts.find((p) => p.id === productCode);
-    const isSubscribed = subProduct?.includedInPlan && (subProduct.status === 'active' || subProduct.status === 'trial');
+  // Checagem de Entitlement Efetivo (Homologação OU Assinatura Comercial)
+  const subProduct = subscription?.includedProducts.find((p) => p.id === productCode);
+  const isSubscribed = Boolean(subProduct?.includedInPlan && (subscription?.status === 'active' || subscription?.status === 'trialing'));
+  const isEntitled = Boolean((context.effectiveProducts && context.effectiveProducts.includes(productCode)) || isSubscribed);
 
-    if (!isSubscribed && permissionKey) {
-      return { allowed: false, reason: 'product_not_subscribed', details: `O produto ${productCode} não faz parte da assinatura da conta.` };
+  // 5. Bypass do Dono (Owner da conta possui privilégio administrativo geral)
+  if (member.role === 'owner' || user.role === 'owner') {
+    // Mesmo o owner respeita se o produto estiver totalmente ausente dos produtos ativos da conta
+    if (!isEntitled && permissionKey) {
+      return { allowed: false, reason: 'product_not_subscribed', details: `O produto ${productCode} não faz parte dos produtos ativos da organização.` };
     }
 
     return { allowed: true, reason: 'owner_bypass', details: 'Acesso concedido por privilégio de Proprietário da Conta.' };
   }
 
-  // 6. Produto Contratado na Assinatura
-  const subProduct = subscription?.includedProducts.find((p) => p.id === productCode);
-  const isSubscribed = subProduct?.includedInPlan && (subProduct.status === 'active' || subProduct.status === 'trial');
-
-  if (!isSubscribed) {
+  // 6. Produto Disponível na Organização (Entitlement Efetivo)
+  if (!isEntitled) {
     return {
       allowed: false,
       reason: 'product_not_subscribed',
-      details: `O produto ${productCode} não está ativo na assinatura da organização.`
+      details: `O produto ${productCode} não está ativo na assinatura ou homologação da organização.`
     };
   }
 

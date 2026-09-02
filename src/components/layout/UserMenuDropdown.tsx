@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Users, CreditCard, Settings, LogOut, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { canManageUsers, canManageSubscription, canAccessRoute } from '../../security/routeAuthorization';
 
 interface UserMenuDropdownProps {
   onNavigate: (route: string) => void;
@@ -67,29 +68,35 @@ export const UserMenuDropdown: React.FC<UserMenuDropdownProps> = ({ onNavigate }
               <span>Meu perfil</span>
             </button>
 
-            <button
-              onClick={() => handleAction(() => onNavigate('/app/usuarios'))}
-              className="w-full flex items-center px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors gap-3"
-            >
-              <Users className="w-4 h-4 text-slate-400" />
-              <span>Usuários e acessos</span>
-            </button>
+            {canManageUsers(user?.role) && (
+              <button
+                onClick={() => handleAction(() => onNavigate('/app/usuarios'))}
+                className="w-full flex items-center px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors gap-3"
+              >
+                <Users className="w-4 h-4 text-slate-400" />
+                <span>Usuários e acessos</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => handleAction(() => onNavigate('/app/assinatura'))}
-              className="w-full flex items-center px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors gap-3"
-            >
-              <CreditCard className="w-4 h-4 text-slate-400" />
-              <span>Assinatura</span>
-            </button>
+            {canManageSubscription(user?.role) && (
+              <button
+                onClick={() => handleAction(() => onNavigate('/app/assinatura'))}
+                className="w-full flex items-center px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors gap-3"
+              >
+                <CreditCard className="w-4 h-4 text-slate-400" />
+                <span>Assinatura</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => handleAction(() => onNavigate('/app/configuracoes'))}
-              className="w-full flex items-center px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors gap-3"
-            >
-              <Settings className="w-4 h-4 text-slate-400" />
-              <span>Configurações</span>
-            </button>
+            {canAccessRoute(user?.role, '/app/configuracoes') && (
+              <button
+                onClick={() => handleAction(() => onNavigate('/app/configuracoes'))}
+                className="w-full flex items-center px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors gap-3"
+              >
+                <Settings className="w-4 h-4 text-slate-400" />
+                <span>Configurações</span>
+              </button>
+            )}
           </div>
 
           {/* Logout Section */}

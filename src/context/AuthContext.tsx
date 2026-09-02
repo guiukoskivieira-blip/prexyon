@@ -68,19 +68,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const isBackendConnected = isSupabaseConfigured();
+  const [effectiveProducts, setEffectiveProducts] = useState<ProductId[]>([]);
 
-  // Helper para sincronizar status dos produtos com a assinatura real
-  const syncProductsWithSubscription = useCallback((sub: SubscriptionDetails | null) => {
+  // Helper para sincronizar status dos produtos separando estado comercial de autorização
+  const syncProductsWithAuthorization = useCallback((
+    sub: SubscriptionDetails | null,
+    entitledProducts: ProductId[],
+    userRole: string,
+    currentMember: AccountMember | null
+  ) => {
     setProducts((prev) =>
       prev.map((prod) => {
         const subProd = sub?.includedProducts.find((p) => p.id === prod.id);
-        const isSubscribed = Boolean(subProd?.includedInPlan && (sub?.status === 'active' || sub?.status === 'trialing'));
+        const isCommerciallySubscribed = Boolean(subProd?.includedInPlan && (sub?.status === 'active' || sub?.status === 'trialing'));
+        const isEntitledByOrg = entitledProducts.includes(prod.id) || isCommerciallySubscribed;
+
+        // Autorização efetiva do usuário no produto:
+        // Owner possui acesso pleno se a organização tiver entitlement
+        // Member/Admin precisa de entitlement na org E habilitação em assignedProducts
+        let userHasProductAccess = false;
+        if (isEntitledByOrg) {
+          if (userRole === 'owner') {
+            userHasProductAccess = true;
+          } else {
+            userHasProductAccess = currentMember ? currentMember.assignedProducts.includes(prod.id) : false;
+          }
+        }
+
         return {
           ...prod,
-          status: isSubscribed ? ('active' as ProductStatus) : ('inactive' as ProductStatus),
-          statusLabel: isSubscribed ? 'Ativo' : 'Não contratado',
-          ctaText: isSubscribed ? `Abrir ${prod.name}` : `Assinar ${prod.name}`,
-          isSubscribed,
+          status: userHasProductAccess ? ('active' as ProductStatus) : ('inactive' as ProductStatus),
+          statusLabel: userHasProductAccess ? 'Ativo' : 'Não contratado',
+          ctaText: userHasProductAccess
+            ? `Abrir ${prod.name}`
+            : (userRole === 'member' ? 'Não disponível' : `Assinar ${prod.name}`),
+          isSubscribed: userHasProductAccess,
         };
       })
     );
@@ -116,13 +138,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(authUser);
 
       if (effectiveOrg.id) {
-        const [sub, mems] = await Promise.all([
+        const [sub, mems, entRes] = await Promise.all([
           subscriptionService.fetchOrganizationSubscription(effectiveOrg.id),
           organizationService.getMembers(effectiveOrg.id),
+          (supabase.rpc as any)('prexyon_get_organization_entitlements', { p_org_id: effectiveOrg.id }),
         ]);
 
+        const rawEffective: string[] = entRes?.data?.effective_products || [];
+        const entProducts = rawEffective.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+        setEffectiveProducts(entProducts);
         setSubscription(sub);
-        syncProductsWithSubscription(sub);
+
+        const currentMember = (mems || []).find((m) => m.userId === userId) || null;
+        syncProductsWithAuthorization(sub, entProducts, authUser.role, currentMember);
 
         if (mems && mems.length > 0) {
           setMembers(mems);
@@ -135,9 +163,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               name: authUser.name,
               email: authUser.email,
               initials: authUser.initials,
-              role: 'owner',
+              role: (authUser.role as any) || 'owner',
               status: 'active',
-              assignedProducts: sub ? sub.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId) : [],
+              assignedProducts: entProducts,
               createdAt: new Date().toISOString(),
             },
           ]);
@@ -145,16 +173,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Usuário sem organização: isolamento estrito fail-closed
         setSubscription(null);
-        syncProductsWithSubscription(null);
+        setEffectiveProducts([]);
+        syncProductsWithAuthorization(null, [], 'member', null);
         setMembers([]);
       }
     } catch (err) {
       console.error('Erro ao carregar dados do usuário:', err);
       setOrganization(noOrgState);
       setSubscription(null);
-      syncProductsWithSubscription(null);
+      setEffectiveProducts([]);
+      syncProductsWithAuthorization(null, [], 'member', null);
     }
-  }, [syncProductsWithSubscription]);
+  }, [syncProductsWithAuthorization]);
 
   // Load session on startup
   useEffect(() => {
@@ -216,8 +246,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setOrganization(noOrgState);
           setSubscription(null);
+          setEffectiveProducts([]);
           setMembers([]);
-          syncProductsWithSubscription(null);
+          syncProductsWithAuthorization(null, [], 'member', null);
           localStorage.removeItem('prexyon_demo_auth');
         }
       });
@@ -231,7 +262,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       mounted = false;
     };
-  }, [isBackendConnected, loadUserData, syncProductsWithSubscription]);
+  }, [isBackendConnected, loadUserData, syncProductsWithAuthorization]);
 
   const login = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
@@ -299,8 +330,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setOrganization(noOrgState);
     setSubscription(null);
+    setEffectiveProducts([]);
     setMembers([]);
-    syncProductsWithSubscription(null);
+    syncProductsWithAuthorization(null, [], 'member', null);
     localStorage.removeItem('prexyon_demo_auth');
     setIsLoading(false);
   };
@@ -489,12 +521,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         organization,
         member: currentMember,
         subscription,
+        effectiveProducts,
         userProductAccess,
       };
 
       return can(context, productCode, permissionKey);
     },
-    [user, organization, members, subscription]
+    [user, organization, members, subscription, effectiveProducts]
   );
 
   const refreshUserData = useCallback(async () => {

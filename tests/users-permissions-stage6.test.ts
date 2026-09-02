@@ -261,6 +261,7 @@ async function runStage6Tests() {
     // ==========================================================================
     // TESTE J: Usuário e Organização autorizados geram código SSO com sucesso
     // ==========================================================================
+    await client.query(`SET request.jwt.claims = '{"sub": "${memberUserId}", "email": "member@prexyon.com"}';`);
     const ssoSuccessRes = await client.query(`
       SELECT public.prexyon_generate_sso_code('${orgAId}', '${memberUserId}', 'orcagraf') as sso;
     `);
