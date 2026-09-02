@@ -9,6 +9,7 @@ export interface Organization {
   segment?: string;
   logoUrl?: string;
   status?: 'active' | 'suspended' | 'archived';
+  userRole?: 'owner' | 'admin' | 'member' | 'guest';
   createdAt: string;
   updatedAt: string;
 }

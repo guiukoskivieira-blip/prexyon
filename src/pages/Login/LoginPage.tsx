@@ -9,9 +9,10 @@ import { useAuth } from '../../context/AuthContext';
 
 interface LoginPageProps {
   onLoginSuccess?: () => void;
+  hasPendingInvite?: boolean;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, hasPendingInvite }) => {
   const { resetPassword } = useAuth();
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -52,7 +53,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       {/* Right Column: Authentication Card (52% on desktop) */}
       <div className="w-full lg:w-[52%] xl:w-[54%] flex flex-col justify-center items-center p-6 sm:p-10 lg:p-12 min-h-[calc(100vh-340px)] lg:min-h-screen bg-[#f8fafc]">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md space-y-4">
+          {hasPendingInvite && (
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-medium flex items-center gap-3 shadow-xs">
+              <div className="w-2 h-2 rounded-full bg-[#0066ff] animate-ping" />
+              <span>
+                <strong>Convite de organização detectado!</strong> Conecte-se com sua conta para continuar para a tela de aceite.
+              </span>
+            </div>
+          )}
+
           <LoginForm
             onSuccess={onLoginSuccess}
             onForgotPasswordClick={() => setIsForgotModalOpen(true)}

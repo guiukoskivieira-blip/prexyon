@@ -53,6 +53,7 @@ interface AuthContextType {
   inviteUser: (email: string, assignedProducts: ProductId[], role?: 'admin' | 'member' | 'guest') => Promise<{ success: boolean; error?: string }>;
   toggleMemberStatus: (memberId: string, status: 'active' | 'suspended') => Promise<{ success: boolean; error?: string }>;
   checkPermission: (productCode: ProductId, permissionKey?: string) => PermissionCheckResult;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -109,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email,
         avatarUrl: profile.avatarUrl,
         initials: profile.initials || 'US',
-        role: 'owner',
+        role: (effectiveOrg.userRole as any) || 'owner',
         accountId: effectiveOrg.id,
       };
       setUser(authUser);
@@ -496,6 +497,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [user, organization, members, subscription]
   );
 
+  const refreshUserData = useCallback(async () => {
+    if (isBackendConnected) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await loadUserData(session.user.id, session.user.email || '');
+        }
+      } catch (err) {
+        console.error('Erro ao atualizar dados do usuário:', err);
+      }
+    }
+  }, [loadUserData]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -519,6 +533,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         inviteUser,
         toggleMemberStatus,
         checkPermission,
+        refreshUserData,
       }}
     >
       {children}

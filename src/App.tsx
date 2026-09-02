@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/Login/LoginPage';
 import { OnboardingPage } from './pages/Onboarding/OnboardingPage';
+import { AcceptInvitePage } from './pages/Invite/AcceptInvitePage';
 import { PortalLayout } from './components/layout/PortalLayout';
 import { DashboardPage } from './pages/Dashboard/DashboardPage';
 import { SubscriptionPage } from './pages/Subscription/SubscriptionPage';
@@ -13,30 +14,43 @@ import { Loader2 } from 'lucide-react';
 import { PrexyonLogo } from './components/ui/PrexyonLogo';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, organization } = useAuth();
+  const { isAuthenticated, isLoading, organization, refreshUserData } = useAuth();
+
+  // Preservação de rota e token de convite em memória
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
     const path = window.location.pathname;
     if (path === '/onboarding') return '/onboarding';
+    if (path === '/app/convite') return '/app/convite';
     return path.startsWith('/app') ? path : '/app';
   });
+
+  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('token');
+  });
+
   const [selectedProductIdForPerms, setSelectedProductIdForPerms] = useState<string>('orcagraf');
 
   // Handle URL history state
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentRoute(window.location.pathname || '/app');
+      const path = window.location.pathname || '/app';
+      setCurrentRoute(path);
+      const params = new URLSearchParams(window.location.search);
+      const tok = params.get('token');
+      if (tok) setPendingInviteToken(tok);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const navigate = (route: string) => {
-    setCurrentRoute(route);
+    setCurrentRoute(route.split('?')[0]);
     window.history.pushState({}, '', route);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 1. Loading State (avoid redirect flicker during session resolution)
+  // 1. Loading State (evita flicker de redirect enquanto a sessão é resolvida)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center space-y-4">
@@ -49,31 +63,72 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 2. Unauthenticated: Render Login
+  // Identificação segura de convite ativo (via query param ou rota)
+  const isInviteRoute = currentRoute === '/app/convite' || window.location.pathname === '/app/convite';
+  const urlToken = new URLSearchParams(window.location.search).get('token');
+  const activeInviteToken = pendingInviteToken || urlToken;
+
+  // 2. Unauthenticated: Render Login com preservação do convite
   if (!isAuthenticated) {
     return (
       <LoginPage
-        onLoginSuccess={() => navigate('/app')}
+        hasPendingInvite={Boolean(activeInviteToken)}
+        onLoginSuccess={() => {
+          if (activeInviteToken) {
+            navigate(`/app/convite?token=${activeInviteToken}`);
+          } else {
+            navigate('/app');
+          }
+        }}
       />
     );
   }
 
-  // 3. Authenticated without Organization: Enforce Onboarding
+  // ==============================================================================
+  // REGRA DE PRECEDÊNCIA PÓS-AUTENTICAÇÃO
+  // 1. Convite válido pendente explicitamente iniciado pelo usuário
+  // 2. Membership existente
+  // 3. Onboarding para criação de organização
+  // ==============================================================================
+
+  // Precedência 1: Fluxo de Aceite de Convite
+  if (activeInviteToken && isInviteRoute) {
+    return (
+      <AcceptInvitePage
+        token={activeInviteToken}
+        onAccepted={async () => {
+          setPendingInviteToken(null);
+          await refreshUserData();
+          navigate('/app');
+        }}
+        onCancel={() => {
+          setPendingInviteToken(null);
+          navigate('/app');
+        }}
+      />
+    );
+  }
+
+  // Precedência 2 & 3: Checagem de Membership existente vs Onboarding
   const hasOrganization = Boolean(organization && organization.id && organization.id.trim() !== '');
   if (!hasOrganization) {
+    // Precedência 3: Sem convite + Sem membership -> Onboarding
     return (
       <OnboardingPage
-        onComplete={() => navigate('/app')}
+        onComplete={async () => {
+          await refreshUserData();
+          navigate('/app');
+        }}
       />
     );
   }
 
-  // If user already has an organization but visited /onboarding, redirect to /app
-  if (currentRoute === '/onboarding') {
+  // Se o usuário já possui organização mas acessou /onboarding ou /app/convite sem token, redireciona para /app
+  if (currentRoute === '/onboarding' || (currentRoute === '/app/convite' && !activeInviteToken)) {
     navigate('/app');
   }
 
-  // 4. Authenticated with Organization: Render Shell & Sub-pages
+  // Precedência 2: Autenticado com Organização -> Shell do Portal
   const renderSubPage = () => {
     switch (currentRoute) {
       case '/app/assinatura':

@@ -46,6 +46,7 @@ export const organizationService = {
         slug: org.slug || undefined,
         document: org.document || undefined,
         status: org.is_active ? 'active' : 'suspended',
+        userRole: memberData.role as any,
         createdAt: org.created_at,
         updatedAt: org.updated_at,
       };

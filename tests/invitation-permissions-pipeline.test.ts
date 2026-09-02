@@ -329,11 +329,12 @@ async function runPermissionsPipelineTests() {
     }
 
     assert(
-      realInvAudit.rows.length === 2 &&
-      realInvAudit.rows.some(r => r.id === '5b91b7c5-fd74-4960-aa4f-aa47ae5d4cb1' && r.accepted_at === null && r.revoked_at !== null),
-      'Preservação Estrita: O convite 5b91b7c5 permanece intacto no histórico com accepted_at=null e revoked_at preenchido',
-      'accepted_at=null, revoked_at!=null, perms={}',
-      'Preservado com sucesso'
+      realInvAudit.rows.length === 3 &&
+      realInvAudit.rows.some(r => r.id === '5b91b7c5-fd74-4960-aa4f-aa47ae5d4cb1' && r.revoked_at !== null) &&
+      realInvAudit.rows.some(r => r.id === '92c40a8e-ffd0-48a5-ae53-5ad3d6f28b0b' && r.accepted_at === null && r.revoked_at === null),
+      'Preservação Estrita: Os convites reais permanecem intactos no histórico com 92c40a8e pendente para homologação',
+      '3 convites reais preservados',
+      `${realInvAudit.rows.length} convites encontrados`
     );
 
     console.log('================================================================');

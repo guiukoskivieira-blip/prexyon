@@ -184,4 +184,75 @@ export const memberManagementService = {
       return { success: false, error: err.message || 'Erro ao salvar permissões do membro' };
     }
   },
+
+  /**
+   * Consultar dados essenciais do convite para validação e preview de aceite
+   */
+  async getInvitationPreview(token: string): Promise<{
+    success: boolean;
+    data?: {
+      id: string;
+      organization_id: string;
+      organization_name: string;
+      email: string;
+      role: OrganizationRole;
+      product_access: ProductId[];
+      permissions: Record<string, string[]>;
+      expires_at: string;
+    };
+    error?: string;
+    invitation_email?: string;
+    caller_email?: string;
+  }> {
+    try {
+      const { data, error } = await db.rpc('prexyon_get_invitation_preview', {
+        p_token: token,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (!data || !data.success) {
+        return {
+          success: false,
+          error: data?.error || 'Convite inválido ou expirado.',
+          invitation_email: data?.invitation_email,
+          caller_email: data?.caller_email,
+        };
+      }
+
+      return { success: true, data };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Erro inesperado ao consultar convite' };
+    }
+  },
+
+  /**
+   * Aceitar convite atomicamente via RPC autoritativa
+   */
+  async acceptInvitation(token: string): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+  }> {
+    try {
+      const { data, error } = await db.rpc('prexyon_accept_invitation', {
+        p_token_hash: token,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (!data || !data.success) {
+        return { success: false, error: data?.error || 'Erro ao aceitar convite.' };
+      }
+
+      return { success: true, data };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Erro ao processar aceite do convite' };
+    }
+  },
 };
+

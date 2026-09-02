@@ -25,7 +25,8 @@
     "test:seat-limits": "tsx tests/seat-limits-invites.test.ts",
     "test:transactional-invites": "tsx tests/transactional-invitations.test.ts",
     "test:invitation-revocation": "tsx tests/invitation-revocation.test.ts",
-    "test:invitation-permissions": "tsx tests/invitation-permissions-pipeline.test.ts"
+    "test:invitation-permissions": "tsx tests/invitation-permissions-pipeline.test.ts",
+    "test:invite-routing": "tsx tests/invite-auth-routing.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
