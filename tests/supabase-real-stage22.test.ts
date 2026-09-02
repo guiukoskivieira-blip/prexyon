@@ -27,21 +27,15 @@ function record(num: number, title: string, passed: boolean, expected: string, f
   results.push({ num, title, passed, expected, found, error });
 }
 
+import { getDbClient } from './db-client';
+
 async function runRealDatabaseTests() {
   console.log('================================================================');
   console.log('PREXYON — ETAPA 2.2: TESTES REAIS NO BANCO SUPABASE CENTRAL');
   console.log('Projeto: orcagraf-dev (ybsdwcaagcazfedrwhjm.supabase.co)');
   console.log('================================================================\n');
 
-  const client = new Client({
-    host: 'aws-0-sa-east-1.pooler.supabase.com',
-    port: 6543,
-    user: 'postgres.ybsdwcaagcazfedrwhjm',
-    password: 'AxDgke4deNV456gC',
-    database: 'postgres',
-    ssl: { rejectUnauthorized: false },
-  });
-
+  const client = getDbClient();
   await client.connect();
 
   try {

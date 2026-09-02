@@ -19,7 +19,10 @@
     "test:billing-security": "tsx tests/billing-security-stage422.test.ts",
     "test:onboarding": "tsx tests/onboarding-stage5.test.ts",
     "test:permissions": "tsx tests/users-permissions-stage6.test.ts",
-    "test:catalog": "tsx tests/plans-catalog-hotfix.test.ts"
+    "test:catalog": "tsx tests/plans-catalog-hotfix.test.ts",
+    "test:stage7": "tsx tests/stage7-homologation-preparation.test.ts",
+    "test:homolog-entitlements": "tsx tests/homologation-entitlements-stage7.test.ts",
+    "test:seat-limits": "tsx tests/seat-limits-invites.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

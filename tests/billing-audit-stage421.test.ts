@@ -215,21 +215,15 @@ export const stage421AuditTests: AuditTestCase[] = [
   },
 ];
 
+import { getDbClient } from './db-client';
+
 async function main() {
   console.log('================================================================');
   console.log('PREXYON — ETAPA 4.2.1: AUDITORIA TÉCNICA MERCADO PAGO');
   console.log('Banco: orcagraf-dev (ybsdwcaagcazfedrwhjm.supabase.co)');
   console.log('================================================================\n');
 
-  const client = new Client({
-    host: 'aws-0-sa-east-1.pooler.supabase.com',
-    port: 6543,
-    user: 'postgres.ybsdwcaagcazfedrwhjm',
-    password: 'AxDgke4deNV456gC',
-    database: 'postgres',
-    ssl: { rejectUnauthorized: false },
-  });
-
+  const client = getDbClient();
   await client.connect();
 
   let passedCount = 0;

@@ -32,21 +32,15 @@ function generateRandomCode(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+import { getDbClient } from './db-client';
+
 async function runHomologation() {
   console.log('================================================================');
   console.log('PREXYON + ORÇAGRAF — ETAPA 3.3: HOMOLOGAÇÃO PONTA A PONTA');
   console.log('Supabase: orcagraf-dev (ybsdwcaagcazfedrwhjm.supabase.co)');
   console.log('================================================================\n');
 
-  const client = new Client({
-    host: 'aws-0-sa-east-1.pooler.supabase.com',
-    port: 6543,
-    user: 'postgres.ybsdwcaagcazfedrwhjm',
-    password: 'AxDgke4deNV456gC',
-    database: 'postgres',
-    ssl: { rejectUnauthorized: false },
-  });
-
+  const client = getDbClient();
   await client.connect();
 
   const supabaseUrl = 'https://ybsdwcaagcazfedrwhjm.supabase.co';

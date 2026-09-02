@@ -5,16 +5,9 @@
  * ==============================================================================
  */
 
-import pg from 'pg';
+import { getDbClient } from './db-client';
 
-const client = new pg.Client({
-  host: 'aws-0-sa-east-1.pooler.supabase.com',
-  port: 5432,
-  user: 'postgres.ybsdwcaagcazfedrwhjm',
-  password: 'AxDgke4deNV456gC',
-  database: 'postgres',
-  ssl: { rejectUnauthorized: false },
-});
+const client = getDbClient();
 
 async function runOnboardingTests() {
   await client.connect();

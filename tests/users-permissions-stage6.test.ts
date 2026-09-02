@@ -5,20 +5,11 @@
  * ==============================================================================
  */
 
-import pg from 'pg';
 import crypto from 'crypto';
-
-const DB_CONFIG = {
-  host: 'aws-0-sa-east-1.pooler.supabase.com',
-  port: 5432,
-  user: 'postgres.ybsdwcaagcazfedrwhjm',
-  password: 'AxDgke4deNV456gC',
-  database: 'postgres',
-  ssl: { rejectUnauthorized: false },
-};
+import { getDbClient } from './db-client';
 
 async function runStage6Tests() {
-  const client = new pg.Client(DB_CONFIG);
+  const client = getDbClient();
   await client.connect();
 
   console.log('================================================================');
