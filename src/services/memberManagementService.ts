@@ -56,23 +56,53 @@ export const memberManagementService = {
   },
 
   /**
-   * Convidar novo usuário
+   * Convidar novo usuário com disparo transacional de e-mail via Edge Function
    */
-  async inviteUser(payload: InviteUserPayload): Promise<{ success: boolean; data?: any; error?: string }> {
+  async inviteUser(payload: InviteUserPayload): Promise<{
+    success: boolean;
+    invitationCreated?: boolean;
+    emailSent?: boolean;
+    emailError?: string | null;
+    rawToken?: string;
+    inviteUrl?: string;
+    data?: any;
+    error?: string;
+  }> {
     try {
-      const { data, error } = await db.rpc('prexyon_invite_user', {
-        p_organization_id: payload.organizationId,
-        p_email: payload.email,
-        p_role: payload.role,
-        p_product_access: payload.productAccess,
-        p_permissions: payload.permissions || {},
+      // 1. Tenta invocar a Edge Function com envio transacional de e-mail
+      const { data: funcData, error: funcError } = await db.functions.invoke('prexyon-send-invitation', {
+        body: {
+          organization_id: payload.organizationId,
+          email: payload.email,
+          role: payload.role,
+          product_access: payload.productAccess,
+          permissions: payload.permissions || {},
+        },
       });
 
-      if (error) {
-        return { success: false, error: error.message };
+      if (funcError) {
+        return {
+          success: false,
+          error: funcData?.error || funcError.message || 'Serviço de envio de convites indisponível. Nenhum convite foi criado.',
+        };
       }
 
-      return { success: true, data };
+      if (!funcData || !funcData.success) {
+        return {
+          success: false,
+          error: funcData?.error || 'Erro ao processar convite.',
+        };
+      }
+
+      return {
+        success: true,
+        invitationCreated: funcData.invitation_created ?? true,
+        emailSent: funcData.email_sent ?? false,
+        emailError: funcData.email_error ?? null,
+        rawToken: funcData.raw_token,
+        inviteUrl: funcData.invite_url,
+        data: funcData,
+      };
     } catch (err: any) {
       return { success: false, error: err.message || 'Erro inesperado ao convidar usuário' };
     }

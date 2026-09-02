@@ -22,7 +22,8 @@
     "test:catalog": "tsx tests/plans-catalog-hotfix.test.ts",
     "test:stage7": "tsx tests/stage7-homologation-preparation.test.ts",
     "test:homolog-entitlements": "tsx tests/homologation-entitlements-stage7.test.ts",
-    "test:seat-limits": "tsx tests/seat-limits-invites.test.ts"
+    "test:seat-limits": "tsx tests/seat-limits-invites.test.ts",
+    "test:transactional-invites": "tsx tests/transactional-invitations.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

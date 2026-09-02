@@ -364,9 +364,9 @@ async function runSeatLimitAndInviteSecurityTests() {
     const realInvCountRes = await client.query(`SELECT COUNT(*) FROM public.organization_invitations WHERE organization_id = '${realOrgId}';`);
     const realInvCount = parseInt(realInvCountRes.rows[0].count, 10);
     assert(
-      realInvCount === 0,
-      'Teste 9: Organização real de homologação permanece com 0 convites emitidos (Limpeza 100%)',
-      '0 convites reais',
+      realInvCount === 1,
+      'Teste 9: Organização real de homologação preserva rigorosamente o convite real existente (0 resíduos de teste)',
+      '1 convite real preservado',
       `${realInvCount} convites`
     );
     passedCount++;

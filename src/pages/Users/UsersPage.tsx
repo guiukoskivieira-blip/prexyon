@@ -4,7 +4,10 @@ import {
   Shield,
   Mail,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
+  Copy,
+  Check,
   UserX,
   UserCheck,
   Settings,
@@ -44,6 +47,8 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
   const [isLoading, setIsLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionWarning, setActionWarning] = useState<{ message: string; inviteUrl?: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Invite modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -90,7 +95,11 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
     if (!organization?.id) return;
 
     setActionError(null);
+    setActionWarning(null);
+    setActionSuccess(null);
     setIsInviting(true);
+
+    const sentEmail = inviteEmail;
 
     const res = await memberManagementService.inviteUser({
       organizationId: organization.id,
@@ -102,12 +111,22 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
     setIsInviting(false);
 
     if (res.success) {
-      setActionSuccess(`Convite gerado com sucesso para ${inviteEmail}!`);
       setIsInviteModalOpen(false);
       setInviteEmail('');
       setInviteProducts(['orcagraf']);
       fetchMembers();
-      setTimeout(() => setActionSuccess(null), 5000);
+
+      if (res.emailSent) {
+        setActionSuccess(`Convite enviado com sucesso para ${sentEmail}!`);
+        setActionWarning(null);
+        setTimeout(() => setActionSuccess(null), 5000);
+      } else {
+        setActionWarning({
+          message: `Convite criado, mas não foi possível enviar o e-mail para ${sentEmail}.`,
+          inviteUrl: res.inviteUrl,
+        });
+        setActionSuccess(null);
+      }
     } else {
       setActionError(res.error || 'Erro ao convidar usuário.');
     }
@@ -285,6 +304,51 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
           <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div className="text-sm font-medium">{actionSuccess}</div>
           <button onClick={() => setActionSuccess(null)} className="ml-auto text-emerald-500 hover:text-emerald-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {actionWarning && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-3 text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="text-sm space-y-2 flex-1">
+            <div>
+              <span className="font-semibold">Aviso: </span>
+              {actionWarning.message}
+            </div>
+            {actionWarning.inviteUrl && (
+              <div className="pt-1 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(actionWarning.inviteUrl!);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 3000);
+                  }}
+                  className="bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-slate-800"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+                      Link Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 mr-1.5" />
+                      Copiar Link de Convite
+                    </>
+                  )}
+                </Button>
+                <span className="text-xs text-amber-700/80 dark:text-amber-400">
+                  Você pode encaminhar este link temporário diretamente ao colaborador.
+                </span>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setActionWarning(null)} className="ml-auto text-amber-500 hover:text-amber-700">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -825,10 +889,10 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
               {isInviting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Gerando Convite...
+                  Enviando Convite...
                 </>
               ) : (
-                'Gerar Convite'
+                'Enviar Convite'
               )}
             </Button>
           </div>
