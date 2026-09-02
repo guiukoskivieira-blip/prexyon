@@ -50,11 +50,20 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
   const [actionWarning, setActionWarning] = useState<{ message: string; inviteUrl?: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  const DEFAULT_MEMBER_PERMS: Record<ProductId, string[]> = {
+    orcagraf: ['orcagraf.view', 'orcagraf.quotes.view', 'orcagraf.quotes.create'],
+    arteflow: ['arteflow.view', 'arteflow.orders.view'],
+    artecheck: ['artecheck.view', 'artecheck.preflight.view'],
+  };
+
   // Invite modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [inviteProducts, setInviteProducts] = useState<ProductId[]>(['orcagraf']);
+  const [invitePermissions, setInvitePermissions] = useState<Record<string, string[]>>({
+    orcagraf: ['orcagraf.view', 'orcagraf.quotes.view', 'orcagraf.quotes.create'],
+  });
   const [isInviting, setIsInviting] = useState(false);
 
   // Edit Drawer state
@@ -101,11 +110,20 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
 
     const sentEmail = inviteEmail;
 
+    // Filter permissions exclusively for selected products
+    const permissionsPayload: Record<string, string[]> = {};
+    for (const p of inviteProducts) {
+      if (invitePermissions[p] && invitePermissions[p].length > 0) {
+        permissionsPayload[p] = invitePermissions[p];
+      }
+    }
+
     const res = await memberManagementService.inviteUser({
       organizationId: organization.id,
       email: inviteEmail,
       role: inviteRole,
       productAccess: inviteProducts,
+      permissions: permissionsPayload,
     });
 
     setIsInviting(false);
@@ -114,6 +132,9 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
       setIsInviteModalOpen(false);
       setInviteEmail('');
       setInviteProducts(['orcagraf']);
+      setInvitePermissions({
+        orcagraf: ['orcagraf.view', 'orcagraf.quotes.view', 'orcagraf.quotes.create'],
+      });
       fetchMembers();
 
       if (res.emailSent) {
@@ -806,7 +827,16 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setInviteRole('member')}
+                onClick={() => {
+                  setInviteRole('member');
+                  setInvitePermissions((prev) => {
+                    const updated = { ...prev };
+                    for (const p of inviteProducts) {
+                      updated[p] = DEFAULT_MEMBER_PERMS[p] || [];
+                    }
+                    return updated;
+                  });
+                }}
                 className={`p-3 rounded-lg border text-left transition-all ${
                   inviteRole === 'member'
                     ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600'
@@ -819,7 +849,16 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
 
               <button
                 type="button"
-                onClick={() => setInviteRole('admin')}
+                onClick={() => {
+                  setInviteRole('admin');
+                  setInvitePermissions((prev) => {
+                    const updated = { ...prev };
+                    for (const p of inviteProducts) {
+                      updated[p] = PERMISSIONS_MATRIX[p]?.categories.flatMap((c) => c.permissions).map((x) => x.key) || [];
+                    }
+                    return updated;
+                  });
+                }}
                 className={`p-3 rounded-lg border text-left transition-all ${
                   inviteRole === 'admin'
                     ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600'
@@ -832,50 +871,100 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Softwares a Liberar
+              Softwares e Permissões Granulares
             </label>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {(['orcagraf', 'arteflow', 'artecheck'] as const).map((prodId) => {
                 const hasPlan = orgHasEntitlement(prodId);
                 const isSelected = inviteProducts.includes(prodId);
 
                 return (
-                  <label
-                    key={prodId}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
-                      !hasPlan
-                        ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800'
-                        : isSelected
-                        ? 'bg-indigo-50/30 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-800'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <img src={productIcons[prodId]} alt="" className="w-5 h-5 object-contain" />
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
-                      </span>
-                    </div>
+                  <div key={prodId} className="space-y-2">
+                    <label
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                        !hasPlan
+                          ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800'
+                          : isSelected
+                          ? 'bg-indigo-50/30 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-800'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <img src={productIcons[prodId]} alt="" className="w-5 h-5 object-contain" />
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {prodId === 'orcagraf' ? 'OrçaGraf' : prodId === 'arteflow' ? 'ArteFlow' : 'ArteCheck'}
+                        </span>
+                      </div>
 
-                    {!hasPlan ? (
-                      <span className="text-xs text-rose-500 font-medium">Não contratado</span>
-                    ) : (
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => {
-                          if (isSelected) {
-                            setInviteProducts(inviteProducts.filter((p) => p !== prodId));
-                          } else {
-                            setInviteProducts([...inviteProducts, prodId]);
-                          }
-                        }}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                      />
+                      {!hasPlan ? (
+                        <span className="text-xs text-rose-500 font-medium">Não contratado</span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            if (isSelected) {
+                              setInviteProducts(inviteProducts.filter((p) => p !== prodId));
+                            } else {
+                              setInviteProducts([...inviteProducts, prodId]);
+                              if (!invitePermissions[prodId]) {
+                                setInvitePermissions((prev) => ({
+                                  ...prev,
+                                  [prodId]: inviteRole === 'admin'
+                                    ? (PERMISSIONS_MATRIX[prodId]?.categories.flatMap((c) => c.permissions).map((x) => x.key) || [])
+                                    : (DEFAULT_MEMBER_PERMS[prodId] || []),
+                                }));
+                              }
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                        />
+                      )}
+                    </label>
+
+                    {isSelected && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          <span>Permissões Concedidas ({prodId === 'orcagraf' ? 'OrçaGraf' : prodId})</span>
+                          <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-normal">
+                            {(invitePermissions[prodId] || []).length} selecionada(s)
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1 max-h-48 overflow-y-auto pr-1">
+                          {PERMISSIONS_MATRIX[prodId]?.categories.flatMap((c) => c.permissions).map((perm) => {
+                            const isPermGranted = (invitePermissions[prodId] || []).includes(perm.key);
+                            return (
+                              <label
+                                key={perm.key}
+                                className="flex items-start gap-2 p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isPermGranted}
+                                  onChange={() => {
+                                    setInvitePermissions((prev) => {
+                                      const current = prev[prodId] || [];
+                                      const next = isPermGranted
+                                        ? current.filter((k) => k !== perm.key)
+                                        : [...current, perm.key];
+                                      return { ...prev, [prodId]: next };
+                                    });
+                                  }}
+                                  className="mt-0.5 w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-medium text-slate-800 dark:text-slate-200">{perm.label}</div>
+                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{perm.description}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
-                  </label>
+                  </div>
                 );
               })}
             </div>

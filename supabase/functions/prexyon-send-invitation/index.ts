@@ -138,6 +138,39 @@ serve(async (req) => {
       );
     }
 
+    // 0. Validação e sanitização estrita de permissions (Fail-Closed)
+    const sanitizedPermissions: Record<string, string[]> = {};
+    if (permissions && typeof permissions === 'object' && !Array.isArray(permissions)) {
+      for (const [prodKey, permList] of Object.entries(permissions)) {
+        // Validação 1: O produto deve estar em product_access
+        if (!product_access.includes(prodKey)) {
+          return new Response(
+            JSON.stringify({ success: false, error: `PERMISSION_FOR_UNAUTHORIZED_PRODUCT: Cannot grant permissions for product '${prodKey}' which is not in product_access` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Validação 2: permList deve ser um array de strings
+        if (!Array.isArray(permList)) {
+          return new Response(
+            JSON.stringify({ success: false, error: `INVALID_PERMISSIONS_FORMAT: Permissions for '${prodKey}' must be an array of strings` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Validação 3: Cada permissão deve pertencer ao prefixo do produto
+        const cleanPerms: string[] = [];
+        for (const perm of permList as any[]) {
+          if (typeof perm !== 'string' || !perm.startsWith(`${prodKey}.`)) {
+            return new Response(
+              JSON.stringify({ success: false, error: `INVALID_PERMISSION_KEY: Permission '${perm}' does not belong to product '${prodKey}'` }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          cleanPerms.push(perm);
+        }
+        sanitizedPermissions[prodKey] = cleanPerms;
+      }
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
@@ -152,7 +185,7 @@ serve(async (req) => {
       p_email: email,
       p_role: role,
       p_product_access: product_access,
-      p_permissions: permissions,
+      p_permissions: sanitizedPermissions,
     });
 
     if (inviteError) {

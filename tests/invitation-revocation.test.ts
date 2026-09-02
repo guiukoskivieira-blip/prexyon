@@ -295,9 +295,11 @@ async function runInvitationRevocationTests() {
     );
 
     assert(
-      realInvRes.rows.length === 1 && realInvRes.rows[0].id === legacyInvId,
-      'Teste 10: Organização real possui exatamente o convite legado esperado, sem fixtures vazadas',
-      '1 convite real preservado',
+      realInvRes.rows.length === 2 &&
+      realInvRes.rows.some(r => r.id === legacyInvId && r.revoked_at !== null) &&
+      realInvRes.rows.some(r => r.id === '5b91b7c5-fd74-4960-aa4f-aa47ae5d4cb1' && r.revoked_at !== null),
+      'Teste 10: Organização real possui exatamente os convites reais esperados, sem fixtures vazadas',
+      '2 convites reais preservados no histórico',
       `${realInvRes.rows.length} convites na org real`
     );
     passed++;
