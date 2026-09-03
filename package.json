@@ -29,7 +29,10 @@
     "test:invite-routing": "tsx tests/invite-auth-routing.test.ts",
     "test:invitation-fk": "tsx tests/invitation-fk-profile.test.ts",
     "test:sso-identity-security": "tsx tests/sso-identity-security.test.ts",
-    "test:member-route-authorization": "tsx tests/member-route-authorization.test.ts"
+    "test:member-route-authorization": "tsx tests/member-route-authorization.test.ts",
+    "test:sso-v2": "tsx tests/sso-v2-exchange.test.ts",
+    "test:arteflow-catalog": "tsx tests/arteflow-permissions-catalog.test.ts",
+    "test:remote-sso-v2": "tsx tests/remote-sso-v2-homologation.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
