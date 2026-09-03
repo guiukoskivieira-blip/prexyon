@@ -78,7 +78,7 @@ async function runArteflowPermissionsCatalogTests() {
     // -------------------------------------------------------------
     const realOrgId = '43c47a08-2f84-42db-a64d-d1f0ea0c6a6b';
 
-    // 2.1 Verificar grants reais de permissões no banco
+    // 2.1 Verificar grants de ArteCheck (Produto não homologado / zero privilege expansion)
     const realPermsRes = await client.query(`
       SELECT pp.permission_key, pp.product_key, pp.is_granted, u.email
       FROM public.product_permissions pp
@@ -86,51 +86,71 @@ async function runArteflowPermissionsCatalogTests() {
       WHERE pp.organization_id = $1;
     `, [realOrgId]);
 
-    const realArteflowPerms = realPermsRes.rows.filter((r: any) => r.product_key === 'arteflow');
+    const realArtecheckPerms = realPermsRes.rows.filter((r: any) => r.product_key === 'artecheck');
     assert(
-      realArteflowPerms.length === 0,
-      'Fase 2.1: Zero grants do ArteFlow concedidos a membros reais na organização (Zero Privilege Expansion)',
-      '0 grants arteflow',
-      `${realArteflowPerms.length} grants arteflow`
+      realArtecheckPerms.length === 0,
+      'Fase 2.1: Zero grants do ArteCheck concedidos a membros na organização (Zero Privilege Expansion)',
+      '0 grants artecheck',
+      `${realArtecheckPerms.length} grants artecheck`
     );
 
-    // 2.2 Confirmar que MEMBER real possui exclusivamente as 3 grants canônicas de OrçaGraf
+    // 2.2 Confirmar que MEMBER real possui exatamente as 3 grants canônicas de OrçaGraf e as 7 aprovadas de ArteFlow
     const memberGrants = realPermsRes.rows.filter((r: any) => r.email === 'designcreative254@gmail.com');
-    const memberGrantKeys = memberGrants.map((g: any) => g.permission_key).sort();
-    const expectedMemberKeys = ['orcagraf.quotes.create', 'orcagraf.quotes.view', 'orcagraf.view'];
+    const memberOrcagrafKeys = memberGrants.filter((g: any) => g.product_key === 'orcagraf').map((g: any) => g.permission_key).sort();
+    const expectedOrcagrafKeys = ['orcagraf.quotes.create', 'orcagraf.quotes.view', 'orcagraf.view'];
 
     assert(
-      JSON.stringify(memberGrantKeys) === JSON.stringify(expectedMemberKeys),
+      JSON.stringify(memberOrcagrafKeys) === JSON.stringify(expectedOrcagrafKeys),
       'Fase 2.2: MEMBER real permanece com exatamente as 3 grants homologadas de OrçaGraf intactas',
-      JSON.stringify(expectedMemberKeys),
-      JSON.stringify(memberGrantKeys)
+      JSON.stringify(expectedOrcagrafKeys),
+      JSON.stringify(memberOrcagrafKeys)
     );
 
-    // 2.3 Verificar que a organização real permanece com effective_products = ['orcagraf']
+    const memberArteflowKeys = memberGrants.filter((g: any) => g.product_key === 'arteflow').map((g: any) => g.permission_key).sort();
+    const expectedArteflowKeys = [
+      'arteflow.finance.view',
+      'arteflow.inventory.view',
+      'arteflow.orders.create',
+      'arteflow.orders.view',
+      'arteflow.procurement.view',
+      'arteflow.production.view',
+      'arteflow.view',
+    ];
+
+    assert(
+      JSON.stringify(memberArteflowKeys) === JSON.stringify(expectedArteflowKeys),
+      'Fase 2.3: MEMBER real possui exatamente as 7 grants mínimas aprovadas de ArteFlow',
+      JSON.stringify(expectedArteflowKeys),
+      JSON.stringify(memberArteflowKeys)
+    );
+
+    // 2.4 Verificar que a organização real possui effective_products = ['arteflow', 'orcagraf'] com has_subscription=false
     const entRes = await client.query(`SELECT public.prexyon_get_organization_entitlements($1) as data;`, [realOrgId]);
     const entData = entRes.rows[0]?.data;
 
     assert(
-      JSON.stringify(entData?.effective_products) === '["orcagraf"]' && entData?.has_subscription === false,
-      'Fase 2.3: Entitlement da organização real permanece estritamente ["orcagraf"] com has_subscription=false',
-      'products=["orcagraf"], has_sub=false',
+      entData?.effective_products.includes('arteflow') &&
+      entData?.effective_products.includes('orcagraf') &&
+      entData?.has_subscription === false,
+      'Fase 2.4: Entitlement da organização real combina OrçaGraf e ArteFlow com has_subscription=false',
+      'products=["arteflow", "orcagraf"], has_sub=false',
       `products=${JSON.stringify(entData?.effective_products)}, has_sub=${entData?.has_subscription}`
     );
 
-    // 2.4 Verificar que product_access do MEMBER real permanece estritamente ['orcagraf']
+    // 2.5 Verificar que product_access do MEMBER real possui orcagraf e arteflow habilitados
     const memberAccessRes = await client.query(`
       SELECT product_key, is_enabled 
       FROM public.organization_member_product_access ompa
       JOIN auth.users u ON u.id = ompa.user_id
-      WHERE ompa.organization_id = $1 AND u.email = 'designcreative254@gmail.com';
+      WHERE ompa.organization_id = $1 AND u.email = 'designcreative254@gmail.com' AND ompa.is_enabled = true;
     `, [realOrgId]);
+    const activeProducts = memberAccessRes.rows.map((r: any) => r.product_key).sort();
 
-    const enabledProducts = memberAccessRes.rows.filter((r: any) => r.is_enabled).map((r: any) => r.product_key);
     assert(
-      JSON.stringify(enabledProducts) === '["orcagraf"]',
-      'Fase 2.4: organization_member_product_access do MEMBER real habilitado exclusivamente para orcagraf',
-      '["orcagraf"]',
-      JSON.stringify(enabledProducts)
+      JSON.stringify(activeProducts) === JSON.stringify(['arteflow', 'orcagraf']),
+      'Fase 2.5: Product access do MEMBER real habilitado para orcagraf e arteflow',
+      '["arteflow","orcagraf"]',
+      JSON.stringify(activeProducts)
     );
 
     console.log('================================================================');

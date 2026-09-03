@@ -224,10 +224,10 @@ async function runRemoteSsoV2Homologation() {
     await client.query('ROLLBACK;');
     assert(memCheck.rows[0]?.is_active === false, '13.14: Membership inativa bloqueia acesso no bootstrap', 'is_active=false', `is_active=${memCheck.rows[0]?.is_active}`);
 
-    // 13.15 Entitlement inexistente
+    // 13.15 Entitlement inexistente (ex: ArteCheck)
     const entCheck = await client.query(`SELECT public.prexyon_get_organization_entitlements($1) as data;`, [realOrgId]);
-    const hasArteflow = entCheck.rows[0]?.data?.effective_products?.includes('arteflow') || false;
-    assert(hasArteflow === false, '13.15: Entitlement inexistente (ex: ArteFlow) bloqueia bootstrap para produto não contratado', 'hasArteflow = false', `hasArteflow = ${hasArteflow}`);
+    const hasArtecheck = entCheck.rows[0]?.data?.effective_products?.includes('artecheck') || false;
+    assert(hasArtecheck === false, '13.15: Entitlement inexistente (ex: ArteCheck) bloqueia bootstrap para produto não contratado', 'hasArtecheck = false', `hasArtecheck = ${hasArtecheck}`);
 
     // 13.16 Product_access desligado (teste em transação)
     await client.query('BEGIN;');
