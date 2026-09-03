@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const PROD_ALLOWED_REDIRECT_ORIGINS = [
   'https://or-agraf-bete-20-production.up.railway.app',
+  'https://arteflow-10-production.up.railway.app',
   'https://orcagraf.prexyon.com',
   'https://arteflow.prexyon.com',
   'https://artecheck.prexyon.com',

@@ -2,11 +2,12 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ProductId } from '../types/product';
 
 const ORCAGRAF_PROD_URL = import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://or-agraf-bete-20-production.up.railway.app';
-const ARTEFLOW_PROD_URL = import.meta.env.VITE_ARTEFLOW_APP_URL || '';
+const ARTEFLOW_PROD_URL = import.meta.env.VITE_ARTEFLOW_APP_URL || 'https://arteflow-10-production.up.railway.app';
 const ARTECHECK_PROD_URL = import.meta.env.VITE_ARTECHECK_APP_URL || '';
 
 const ALLOWLIST_REDIRECTS = [
   'https://or-agraf-bete-20-production.up.railway.app/auth/prexyon',
+  'https://arteflow-10-production.up.railway.app/auth/prexyon',
   'https://orcagraf.prexyon.com/auth/prexyon',
   'https://arteflow.prexyon.com/auth/prexyon',
   'https://artecheck.prexyon.com/auth/prexyon',
