@@ -211,47 +211,30 @@ async function runSsoIdentitySecurityTests() {
     );
 
     // -------------------------------------------------------------
-    // TESTE 5: MEMBER autenticado tenta gerar SSO para ArteFlow (sem entitlement)
+    // TESTE 5: MEMBER autenticado gera SSO para ArteFlow (Separação Auth x Entitlement)
     // -------------------------------------------------------------
-    let arteflowBlocked = false;
-    let arteflowErr = '';
-    try {
-      await client.query(
-        `SELECT public.prexyon_generate_sso_code($1::uuid, 'arteflow');`,
-        [testOrgId]
-      );
-    } catch (err: any) {
-      arteflowBlocked = true;
-      arteflowErr = err.message;
-    }
+    await client.query(`SET ROLE authenticated; SET request.jwt.claims = '{"sub": "${memberUserId}", "email": "${memberEmail}", "role": "authenticated"}';`);
+    const sso5Res = await client.query(`SELECT public.prexyon_generate_sso_code($1::uuid, 'arteflow') as res;`, [testOrgId]);
+    const sso5 = sso5Res.rows[0].res;
 
     assert(
-      arteflowBlocked && arteflowErr.includes('PRODUCT_NOT_SUBSCRIBED'),
-      'Teste 5: MEMBER autenticado tentando SSO para ArteFlow é rejeitado por falta de entitlement',
-      'Exceção PRODUCT_NOT_SUBSCRIBED',
-      `Bloqueado: ${arteflowErr}`
+      sso5.success === true && Boolean(sso5.code) && sso5.product_code === 'arteflow',
+      'Teste 5: MEMBER autenticado emite SSO para ArteFlow com sucesso (Identidade transportada)',
+      'success=true, code preenchido, product_code=arteflow',
+      `success=${sso5.success}, code=${sso5.code?.substring(0, 8)}..., product_code=${sso5.product_code}`
     );
 
     // -------------------------------------------------------------
-    // TESTE 6: MEMBER autenticado tenta gerar SSO para ArteCheck (sem entitlement)
+    // TESTE 6: MEMBER autenticado gera SSO para ArteCheck (Separação Auth x Entitlement)
     // -------------------------------------------------------------
-    let artecheckBlocked = false;
-    let artecheckErr = '';
-    try {
-      await client.query(
-        `SELECT public.prexyon_generate_sso_code($1::uuid, 'artecheck');`,
-        [testOrgId]
-      );
-    } catch (err: any) {
-      artecheckBlocked = true;
-      artecheckErr = err.message;
-    }
+    const sso6Res = await client.query(`SELECT public.prexyon_generate_sso_code($1::uuid, 'artecheck') as res;`, [testOrgId]);
+    const sso6 = sso6Res.rows[0].res;
 
     assert(
-      artecheckBlocked && artecheckErr.includes('PRODUCT_NOT_SUBSCRIBED'),
-      'Teste 6: MEMBER autenticado tentando SSO para ArteCheck é rejeitado por falta de entitlement',
-      'Exceção PRODUCT_NOT_SUBSCRIBED',
-      `Bloqueado: ${artecheckErr}`
+      sso6.success === true && Boolean(sso6.code) && sso6.product_code === 'artecheck',
+      'Teste 6: MEMBER autenticado emite SSO para ArteCheck com sucesso (Identidade transportada)',
+      'success=true, code preenchido, product_code=artecheck',
+      `success=${sso6.success}, code=${sso6.code?.substring(0, 8)}..., product_code=${sso6.product_code}`
     );
 
     // -------------------------------------------------------------
@@ -302,50 +285,39 @@ async function runSsoIdentitySecurityTests() {
     );
 
     // -------------------------------------------------------------
-    // TESTE 9: product_access disabled bloqueia SSO
+    // TESTE 9: Produto fora do catálogo oficial é rejeitado
     // -------------------------------------------------------------
-    await client.query(`SET request.jwt.claims = '{"sub": "${disabledAccessMemberUserId}", "role": "authenticated"}';`);
-    let accessDisabledBlocked = false;
-    let accessDisabledErr = '';
+    await client.query(`SET request.jwt.claims = '{"sub": "${memberUserId}", "role": "authenticated"}';`);
+    let invalidProductBlocked = false;
+    let invalidProductErr = '';
     try {
       await client.query(
-        `SELECT public.prexyon_generate_sso_code($1::uuid, 'orcagraf');`,
+        `SELECT public.prexyon_generate_sso_code($1::uuid, 'invalid_app_xyz');`,
         [testOrgId]
       );
     } catch (err: any) {
-      accessDisabledBlocked = true;
-      accessDisabledErr = err.message;
+      invalidProductBlocked = true;
+      invalidProductErr = err.message;
     }
 
     assert(
-      accessDisabledBlocked && accessDisabledErr.includes('USER_PRODUCT_ACCESS_DENIED'),
-      'Teste 9: Usuário com acesso ao produto desabilitado (is_enabled=false) tem SSO negado',
-      'Exceção USER_PRODUCT_ACCESS_DENIED',
-      `Bloqueado: ${accessDisabledErr}`
+      invalidProductBlocked && invalidProductErr.includes('INVALID_PRODUCT_CODE'),
+      'Teste 9: Produto fora do catálogo canônico oficial é rejeitado na emissão de código',
+      'Exceção INVALID_PRODUCT_CODE',
+      `Bloqueado: ${invalidProductErr}`
     );
 
     // -------------------------------------------------------------
-    // TESTE 10: Organização sem entitlement efetivo bloqueia SSO
+    // TESTE 10: Entitlement downstream é preservado em prexyon_get_organization_entitlements
     // -------------------------------------------------------------
-    await client.query(`SET request.jwt.claims = '{"sub": "${memberUserId}", "role": "authenticated"}';`);
-
-    let noEntitlementBlocked = false;
-    let noEntitlementErr = '';
-    try {
-      await client.query(
-        `SELECT public.prexyon_generate_sso_code($1::uuid, 'orcagraf');`,
-        [noEntitlementOrgId]
-      );
-    } catch (err: any) {
-      noEntitlementBlocked = true;
-      noEntitlementErr = err.message;
-    }
+    const entRes = await client.query(`SELECT public.prexyon_get_organization_entitlements($1) as ent;`, [noEntitlementOrgId]);
+    const entData = entRes.rows[0].ent;
 
     assert(
-      noEntitlementBlocked && noEntitlementErr.includes('PRODUCT_NOT_SUBSCRIBED'),
-      'Teste 10: Organização sem nenhum entitlement efetivo tem geração de SSO bloqueada',
-      'Exceção PRODUCT_NOT_SUBSCRIBED',
-      `Bloqueado: ${noEntitlementErr}`
+      entData.is_entitled === false && entData.effective_products.length === 0,
+      'Teste 10: Resolver de Entitlement continua fail-closed para organização sem produtos contratados',
+      'is_entitled=false, effective_products=[]',
+      `is_entitled=${entData.is_entitled}, effective_products=${JSON.stringify(entData.effective_products)}`
     );
 
     // -------------------------------------------------------------

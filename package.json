@@ -32,7 +32,8 @@
     "test:member-route-authorization": "tsx tests/member-route-authorization.test.ts",
     "test:sso-v2": "tsx tests/sso-v2-exchange.test.ts",
     "test:arteflow-catalog": "tsx tests/arteflow-permissions-catalog.test.ts",
-    "test:remote-sso-v2": "tsx tests/remote-sso-v2-homologation.ts"
+    "test:remote-sso-v2": "tsx tests/remote-sso-v2-homologation.ts",
+    "test:sso-separation": "tsx tests/sso-separation-entitlement.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

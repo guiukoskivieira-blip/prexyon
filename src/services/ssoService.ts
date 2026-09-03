@@ -2,16 +2,18 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ProductId } from '../types/product';
 
 const ORCAGRAF_PROD_URL = import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://or-agraf-bete-20-production.up.railway.app';
+const ARTEFLOW_PROD_URL = import.meta.env.VITE_ARTEFLOW_APP_URL || '';
+const ARTECHECK_PROD_URL = import.meta.env.VITE_ARTECHECK_APP_URL || '';
 
 const ALLOWLIST_REDIRECTS = [
   'https://or-agraf-bete-20-production.up.railway.app/auth/prexyon',
-  'http://localhost:5173/auth/prexyon',
-  'http://localhost:3000/auth/prexyon',
-  'http://localhost:5174/auth/prexyon',
   'https://orcagraf.prexyon.com/auth/prexyon',
+  'https://arteflow.prexyon.com/auth/prexyon',
+  'https://artecheck.prexyon.com/auth/prexyon',
   ...(ORCAGRAF_PROD_URL ? [`${ORCAGRAF_PROD_URL}/auth/prexyon`] : []),
+  ...(ARTEFLOW_PROD_URL ? [`${ARTEFLOW_PROD_URL}/auth/prexyon`] : []),
+  ...(ARTECHECK_PROD_URL ? [`${ARTECHECK_PROD_URL}/auth/prexyon`] : []),
 ];
-
 
 export interface SsoStartResult {
   success: boolean;
@@ -21,31 +23,35 @@ export interface SsoStartResult {
 }
 
 export const ssoService = {
-  getOrçaGrafRedirectUri(): string {
-    const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV;
-    if (isDev && typeof window !== 'undefined') {
-      // In local dev, allow localhost target if configured
+  getRedirectUri(productCode: ProductId): string | null {
+    if (productCode === 'orcagraf') {
       return `${ORCAGRAF_PROD_URL}/auth/prexyon`;
     }
-    return `${ORCAGRAF_PROD_URL}/auth/prexyon`;
+    if (productCode === 'arteflow') {
+      return ARTEFLOW_PROD_URL ? `${ARTEFLOW_PROD_URL}/auth/prexyon` : null;
+    }
+    if (productCode === 'artecheck') {
+      return ARTECHECK_PROD_URL ? `${ARTECHECK_PROD_URL}/auth/prexyon` : null;
+    }
+    return null;
   },
 
   async startSso(
     organizationId: string,
     productCode: ProductId = 'orcagraf'
   ): Promise<SsoStartResult> {
-    if (productCode !== 'orcagraf') {
+    const redirectUri = this.getRedirectUri(productCode);
+
+    if (!redirectUri) {
       return {
         success: false,
-        error: `A integração de login único (SSO) para ${productCode} estará disponível em breve.`,
+        error: `O endereço de destino do software ${productCode} não está configurado no ambiente.`,
       };
     }
 
-    const redirectUri = this.getOrçaGrafRedirectUri();
-
-    // Validação de Allowlist (Prevenção contra Open Redirect)
+    const isDev = Boolean(import.meta.env.DEV);
     const isAllowed = ALLOWLIST_REDIRECTS.some((url) => redirectUri.startsWith(url)) ||
-                      (import.meta.env.DEV && redirectUri.includes('localhost'));
+                      (isDev && (redirectUri.includes('localhost') || redirectUri.includes('127.0.0.1')));
 
     if (!isAllowed) {
       return {
