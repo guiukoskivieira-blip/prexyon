@@ -6,6 +6,20 @@ import arteflowSymbol from '../assets/branding/arteflow-symbol.png';
 import artecheckLogo from '../assets/branding/artecheck-logo.png';
 import artecheckSymbol from '../assets/branding/artecheck-symbol.png';
 
+const getEnvVar = (name: string, fallback: string = ''): string => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[name]) {
+      return import.meta.env[name];
+    }
+  } catch {}
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[name]) {
+      return process.env[name] as string;
+    }
+  } catch {}
+  return fallback;
+};
+
 export const mockProducts: ProductInfo[] = [
   {
     id: 'orcagraf',
@@ -18,7 +32,7 @@ export const mockProducts: ProductInfo[] = [
     status: 'inactive',
     statusLabel: 'Não contratado',
     ctaText: 'Assinar OrçaGraf',
-    url: import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://or-agraf-bete-20-production.up.railway.app',
+    url: getEnvVar('VITE_ORCAGRAF_APP_URL', 'https://or-agraf-bete-20-production.up.railway.app'),
     theme: {
       primary: '#16a34a',
       light: '#22c55e',
@@ -48,7 +62,13 @@ export const mockProducts: ProductInfo[] = [
     status: 'inactive',
     statusLabel: 'Não contratado',
     ctaText: 'Assinar ArteFlow',
-    url: import.meta.env.VITE_ARTEFLOW_APP_URL || 'https://arteflow-10-production.up.railway.app',
+    url: (() => {
+      const envUrl = getEnvVar('VITE_ARTEFLOW_APP_URL');
+      if (envUrl && !envUrl.includes('arteflow.prexyon.com')) {
+        return envUrl;
+      }
+      return 'https://arteflow-10-production.up.railway.app';
+    })(),
     theme: {
       primary: '#0284c7',
       light: '#38bdf8',

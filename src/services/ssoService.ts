@@ -1,15 +1,38 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ProductId } from '../types/product';
 
-const ORCAGRAF_PROD_URL = import.meta.env.VITE_ORCAGRAF_APP_URL || 'https://or-agraf-bete-20-production.up.railway.app';
-const ARTEFLOW_PROD_URL = import.meta.env.VITE_ARTEFLOW_APP_URL || 'https://arteflow-10-production.up.railway.app';
-const ARTECHECK_PROD_URL = import.meta.env.VITE_ARTECHECK_APP_URL || '';
+const getEnvVar = (name: string, fallback: string = ''): string => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[name]) {
+      return import.meta.env[name];
+    }
+  } catch {}
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[name]) {
+      return process.env[name] as string;
+    }
+  } catch {}
+  return fallback;
+};
+
+// Fonte canônica da URL do ArteFlow: preferência por VITE_ARTEFLOW_APP_URL, com fallback seguro para Railway
+const resolveArteflowProdUrl = (): string => {
+  const envUrl = getEnvVar('VITE_ARTEFLOW_APP_URL');
+  if (envUrl && !envUrl.includes('arteflow.prexyon.com')) {
+    return envUrl;
+  }
+  return 'https://arteflow-10-production.up.railway.app';
+};
+
+const ORCAGRAF_PROD_URL = getEnvVar('VITE_ORCAGRAF_APP_URL', 'https://or-agraf-bete-20-production.up.railway.app');
+const ARTEFLOW_PROD_URL = resolveArteflowProdUrl();
+const ARTECHECK_PROD_URL = getEnvVar('VITE_ARTECHECK_APP_URL', '');
 
 const ALLOWLIST_REDIRECTS = [
   'https://or-agraf-bete-20-production.up.railway.app/auth/prexyon',
   'https://arteflow-10-production.up.railway.app/auth/prexyon',
   'https://orcagraf.prexyon.com/auth/prexyon',
-  'https://arteflow.prexyon.com/auth/prexyon',
+  'https://arteflow.prexyon.com/auth/prexyon', // Futuro custom domain documentado
   'https://artecheck.prexyon.com/auth/prexyon',
   ...(ORCAGRAF_PROD_URL ? [`${ORCAGRAF_PROD_URL}/auth/prexyon`] : []),
   ...(ARTEFLOW_PROD_URL ? [`${ARTEFLOW_PROD_URL}/auth/prexyon`] : []),
@@ -50,7 +73,7 @@ export const ssoService = {
       };
     }
 
-    const isDev = Boolean(import.meta.env.DEV);
+    const isDev = Boolean((typeof import.meta !== 'undefined' && import.meta.env?.DEV) || process.env.NODE_ENV === 'development');
     const isAllowed = ALLOWLIST_REDIRECTS.some((url) => redirectUri.startsWith(url)) ||
                       (isDev && (redirectUri.includes('localhost') || redirectUri.includes('127.0.0.1')));
 

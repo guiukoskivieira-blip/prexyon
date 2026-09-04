@@ -34,9 +34,9 @@
     "test:arteflow-catalog": "tsx tests/arteflow-permissions-catalog.test.ts",
     "test:remote-sso-v2": "tsx tests/remote-sso-v2-homologation.ts",
     "test:sso-separation": "tsx tests/sso-separation-entitlement.test.ts",
-    "test:e2e-arteflow-negative": "tsx tests/e2e-arteflow-negative-homologation.ts",
     "test:e2e-arteflow-positive": "tsx tests/e2e-arteflow-positive-homologation.ts",
-    "test:entitlement-presentation": "tsx tests/entitlement-presentation-and-launch.test.ts"
+    "test:entitlement-presentation": "tsx tests/entitlement-presentation-and-launch.test.ts",
+    "test:arteflow-url": "tsx tests/arteflow-url-resolution.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

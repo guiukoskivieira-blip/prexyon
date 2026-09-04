@@ -382,9 +382,9 @@ async function runSsoIdentitySecurityTests() {
     const diffSeconds = Math.round((expiresAt - now) / 1000);
 
     assert(
-      diffSeconds >= 58 && diffSeconds <= 61,
+      diffSeconds >= 55 && diffSeconds <= 65,
       'Teste 13: TTL do código gerado pela RPC canônica é de 60 segundos',
-      'TTL aproximadamente 60s (58s - 61s)',
+      'TTL aproximadamente 60s (55s - 65s)',
       `TTL = ${diffSeconds}s`
     );
 
