@@ -1,6 +1,6 @@
 import React from 'react';
 import { clsx } from 'clsx';
-import { CheckCircle2, Clock, AlertCircle, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, ShieldAlert, Sparkles } from 'lucide-react';
 import { ProductStatus } from '../../types/product';
 import { SubscriptionStatus } from '../../types/subscription';
 
@@ -29,6 +29,11 @@ export const Badge: React.FC<BadgeProps> = ({
         computedVariant = 'success';
         defaultLabel = defaultLabel || 'Ativo';
         icon = <CheckCircle2 className="w-3.5 h-3.5 mr-1 stroke-[2.2]" />;
+        break;
+      case 'homologation':
+        computedVariant = 'warning';
+        defaultLabel = defaultLabel || 'Acesso de homologação';
+        icon = <Sparkles className="w-3.5 h-3.5 mr-1 stroke-[2.2]" />;
         break;
       case 'coming_soon':
         computedVariant = 'purple';

@@ -59,9 +59,9 @@ async function runMemberRouteAuthorizationTests() {
     );
 
     assert(
-      JSON.stringify(entData?.effective_products) === '["orcagraf"]',
-      'Fase 1.2: Entitlement efetivo da organização real é exclusivamente ["orcagraf"]',
-      'effective_products = ["orcagraf"]',
+      entData?.effective_products?.includes('orcagraf') && entData?.effective_products?.includes('arteflow'),
+      'Fase 1.2: Entitlement efetivo da organização real contém ["arteflow", "orcagraf"]',
+      'effective_products = ["arteflow", "orcagraf"]',
       `effective_products = ${JSON.stringify(entData?.effective_products)}`
     );
 
@@ -109,9 +109,9 @@ async function runMemberRouteAuthorizationTests() {
     const memberAssignedProducts = accessRows.rows.filter((r: any) => r.is_enabled).map((r: any) => r.product_key);
 
     assert(
-      JSON.stringify(memberAssignedProducts) === '["orcagraf"]',
-      'Fase 1.6: MEMBER real possui acesso liberado exclusivamente ao OrçaGraf',
-      'assignedProducts = ["orcagraf"]',
+      memberAssignedProducts.includes('orcagraf') && memberAssignedProducts.includes('arteflow'),
+      'Fase 1.6: MEMBER real possui acesso liberado ao OrçaGraf e ArteFlow',
+      'assignedProducts contains orcagraf and arteflow',
       `assignedProducts = ${JSON.stringify(memberAssignedProducts)}`
     );
 

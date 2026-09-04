@@ -36,11 +36,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const isLaunchable = Boolean(product.isSubscribed && (product.status === 'active' || product.status === 'homologation'));
+
   const handleLaunchProduct = async () => {
     setSsoErrorMessage(null);
 
-    // Se o produto não estiver contratado/ativo, direciona para a página de contratação (se tiver permissão)
-    if (!product.isSubscribed || product.status !== 'active') {
+    // Se o produto não for inicializável, direciona para a página de contratação (se tiver permissão)
+    if (!isLaunchable) {
       if (canManageSubscription(user?.role) && onNavigateToSubscription) {
         onNavigateToSubscription();
       } else {
@@ -56,30 +58,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       return;
     }
 
-    if (product.id === 'orcagraf') {
-      setIsLaunchingSso(true);
-      try {
-        const ssoResult = await ssoService.startSso(organization.id, 'orcagraf');
-        if (ssoResult.success && ssoResult.redirectUrl) {
-          // Redirecionamento seguro para OrçaGraf com Authorization Code
-          window.location.href = ssoResult.redirectUrl;
-        } else {
-          setIsLaunchingSso(false);
-          setSsoErrorMessage(ssoResult.error || 'Não foi possível iniciar o acesso ao OrçaGraf.');
-        }
-      } catch (err: any) {
+    setIsLaunchingSso(true);
+    try {
+      const ssoResult = await ssoService.startSso(organization.id, product.id);
+      if (ssoResult.success && ssoResult.redirectUrl) {
+        // Redirecionamento seguro com Authorization Code
+        window.location.href = ssoResult.redirectUrl;
+      } else {
         setIsLaunchingSso(false);
-        setSsoErrorMessage(err.message || 'Erro de comunicação ao iniciar login único.');
+        setSsoErrorMessage(ssoResult.error || `Não foi possível iniciar o acesso ao ${product.name}.`);
       }
-    } else {
-      // Outros produtos (ArteFlow / ArteCheck)
-      setIsDetailsOpen(true);
+    } catch (err: any) {
+      setIsLaunchingSso(false);
+      setSsoErrorMessage(err.message || 'Erro de comunicação ao iniciar login único.');
     }
   };
 
   // Border and accent styling based on product
   const getProductAccent = () => {
-    if (!product.isSubscribed || product.status !== 'active') {
+    if (!isLaunchable) {
       return {
         topBorder: 'border-t-4 border-t-slate-300',
         btnClass: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-2xs hover:border-[#0066ff] hover:text-[#0066ff]',
@@ -262,19 +259,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="flex items-center justify-between pt-4 border-t border-slate-100">
             <Badge status={product.status} label={product.statusLabel} />
             <Button
-              variant={product.isSubscribed && product.status === 'active' ? 'primary' : 'outline'}
+              variant={isLaunchable ? 'primary' : 'outline'}
               size="sm"
               onClick={() => {
                 setIsDetailsOpen(false);
-                if (product.isSubscribed && product.status === 'active') {
+                if (isLaunchable) {
                   handleLaunchProduct();
                 } else if (onNavigateToSubscription) {
                   onNavigateToSubscription();
                 }
               }}
-              rightIcon={product.isSubscribed && product.status === 'active' ? <ExternalLink className="w-3.5 h-3.5" /> : undefined}
+              rightIcon={isLaunchable ? <ExternalLink className="w-3.5 h-3.5" /> : undefined}
             >
-              {product.isSubscribed && product.status === 'active' ? `Abrir ${product.name}` : `Contratar plano`}
+              {isLaunchable ? `Abrir ${product.name}` : `Contratar plano`}
             </Button>
           </div>
         </div>

@@ -48,7 +48,7 @@ export const mockProducts: ProductInfo[] = [
     status: 'inactive',
     statusLabel: 'Não contratado',
     ctaText: 'Assinar ArteFlow',
-    url: 'https://arteflow.prexyon.com',
+    url: import.meta.env.VITE_ARTEFLOW_APP_URL || 'https://arteflow-10-production.up.railway.app',
     theme: {
       primary: '#0284c7',
       light: '#38bdf8',

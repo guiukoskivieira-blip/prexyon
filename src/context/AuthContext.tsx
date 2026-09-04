@@ -31,6 +31,9 @@ interface AuthContextType {
   products: ProductInfo[];
   members: AccountMember[];
   invites: InviteRecord[];
+  effectiveProducts: ProductId[];
+  commercialProducts: ProductId[];
+  homologationProducts: ProductId[];
   isAuthenticated: boolean;
   isLoading: boolean;
   isBackendConnected: boolean;
@@ -69,22 +72,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
   const isBackendConnected = isSupabaseConfigured();
   const [effectiveProducts, setEffectiveProducts] = useState<ProductId[]>([]);
+  const [commercialProducts, setCommercialProducts] = useState<ProductId[]>([]);
+  const [homologationProducts, setHomologationProducts] = useState<ProductId[]>([]);
 
   // Helper para sincronizar status dos produtos separando estado comercial de autorização
   const syncProductsWithAuthorization = useCallback((
-    sub: SubscriptionDetails | null,
+    _sub: SubscriptionDetails | null,
+    commProducts: ProductId[],
+    homologProducts: ProductId[],
     entitledProducts: ProductId[],
     userRole: string,
     currentMember: AccountMember | null
   ) => {
     setProducts((prev) =>
       prev.map((prod) => {
-        const subProd = sub?.includedProducts.find((p) => p.id === prod.id);
-        const isCommerciallySubscribed = Boolean(subProd?.includedInPlan && (sub?.status === 'active' || sub?.status === 'trialing'));
-        const isEntitledByOrg = entitledProducts.includes(prod.id) || isCommerciallySubscribed;
+        const isCommercial = commProducts.includes(prod.id);
+        const isHomologation = homologProducts.includes(prod.id) && !isCommercial;
+        const isEntitledByOrg = entitledProducts.includes(prod.id);
 
         // Autorização efetiva do usuário no produto:
-        // Owner possui acesso pleno se a organização tiver entitlement
+        // Owner possui acesso se a organização tiver entitlement
         // Member/Admin precisa de entitlement na org E habilitação em assignedProducts
         let userHasProductAccess = false;
         if (isEntitledByOrg) {
@@ -95,14 +102,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
+        let status: ProductStatus = 'inactive';
+        let statusLabel = 'Não contratado';
+        let entitlementType: 'commercial' | 'homologation' | 'none' = 'none';
+
+        if (isCommercial) {
+          entitlementType = 'commercial';
+          statusLabel = userHasProductAccess ? 'Contratado' : 'Sem acesso';
+          status = userHasProductAccess ? 'active' : 'inactive';
+        } else if (isHomologation) {
+          entitlementType = 'homologation';
+          statusLabel = userHasProductAccess ? 'Acesso de homologação' : 'Sem acesso';
+          status = userHasProductAccess ? 'homologation' : 'inactive';
+        } else {
+          entitlementType = 'none';
+          statusLabel = 'Não contratado';
+          status = 'inactive';
+        }
+
+        let ctaText = 'Não disponível';
+        if (userHasProductAccess) {
+          ctaText = `Abrir ${prod.name}`;
+        } else if (userRole === 'owner') {
+          ctaText = isEntitledByOrg ? 'Gerenciar acesso' : `Assinar ${prod.name}`;
+        } else {
+          ctaText = 'Não disponível';
+        }
+
         return {
           ...prod,
-          status: userHasProductAccess ? ('active' as ProductStatus) : ('inactive' as ProductStatus),
-          statusLabel: userHasProductAccess ? 'Ativo' : 'Não contratado',
-          ctaText: userHasProductAccess
-            ? `Abrir ${prod.name}`
-            : (userRole === 'member' ? 'Não disponível' : `Assinar ${prod.name}`),
+          status,
+          statusLabel,
+          ctaText,
           isSubscribed: userHasProductAccess,
+          entitlementType,
         };
       })
     );
@@ -145,12 +178,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ]);
 
         const rawEffective: string[] = entRes?.data?.effective_products || [];
+        const rawCommercial: string[] = entRes?.data?.commercial_products || [];
+        const rawHomologation: string[] = entRes?.data?.homologation_products || [];
+
         const entProducts = rawEffective.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+        const commProducts = rawCommercial.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+        const homologProducts = rawHomologation.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+
         setEffectiveProducts(entProducts);
+        setCommercialProducts(commProducts);
+        setHomologationProducts(homologProducts);
         setSubscription(sub);
 
         const currentMember = (mems || []).find((m) => m.userId === userId) || null;
-        syncProductsWithAuthorization(sub, entProducts, authUser.role, currentMember);
+        syncProductsWithAuthorization(sub, commProducts, homologProducts, entProducts, authUser.role, currentMember);
 
         if (mems && mems.length > 0) {
           setMembers(mems);
@@ -174,7 +215,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Usuário sem organização: isolamento estrito fail-closed
         setSubscription(null);
         setEffectiveProducts([]);
-        syncProductsWithAuthorization(null, [], 'member', null);
+        setCommercialProducts([]);
+        setHomologationProducts([]);
+        syncProductsWithAuthorization(null, [], [], [], 'member', null);
         setMembers([]);
       }
     } catch (err) {
@@ -182,7 +225,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setOrganization(noOrgState);
       setSubscription(null);
       setEffectiveProducts([]);
-      syncProductsWithAuthorization(null, [], 'member', null);
+      setCommercialProducts([]);
+      setHomologationProducts([]);
+      syncProductsWithAuthorization(null, [], [], [], 'member', null);
     }
   }, [syncProductsWithAuthorization]);
 
@@ -247,8 +292,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setOrganization(noOrgState);
           setSubscription(null);
           setEffectiveProducts([]);
+          setCommercialProducts([]);
+          setHomologationProducts([]);
           setMembers([]);
-          syncProductsWithAuthorization(null, [], 'member', null);
+          syncProductsWithAuthorization(null, [], [], [], 'member', null);
           localStorage.removeItem('prexyon_demo_auth');
         }
       });
@@ -331,8 +378,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setOrganization(noOrgState);
     setSubscription(null);
     setEffectiveProducts([]);
+    setCommercialProducts([]);
+    setHomologationProducts([]);
     setMembers([]);
-    syncProductsWithAuthorization(null, [], 'member', null);
+    syncProductsWithAuthorization(null, [], [], [], 'member', null);
     localStorage.removeItem('prexyon_demo_auth');
     setIsLoading(false);
   };
@@ -366,6 +415,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (prod.id !== productId) return prod;
         const labels: Record<ProductStatus, string> = {
           active: 'Ativo',
+          homologation: 'Acesso de homologação',
           trial: 'Período de teste',
           inactive: 'Inativo',
           coming_soon: 'Em breve',
@@ -373,6 +423,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         const ctas: Record<ProductStatus, string> = {
           active: `Abrir ${prod.name}`,
+          homologation: `Abrir ${prod.name}`,
           trial: `Acessar Teste ${prod.name}`,
           inactive: `Assinar ${prod.name}`,
           coming_soon: 'Conhecer produto',
@@ -383,7 +434,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           status,
           statusLabel: labels[status],
           ctaText: ctas[status],
-          isSubscribed: status === 'active' || status === 'trial',
+          isSubscribed: status === 'active' || status === 'homologation' || status === 'trial',
         };
       })
     );
@@ -506,14 +557,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         initials: user?.initials || 'US',
         role: (user?.role || 'owner') as any,
         status: 'active',
-        assignedProducts: subscription ? subscription.includedProducts.filter((p) => p.includedInPlan).map((p) => p.id as ProductId) : [],
+        assignedProducts: effectiveProducts,
         createdAt: new Date().toISOString(),
       };
 
       const userProductAccess: Record<ProductId, boolean> = {
-        orcagraf: currentMember.assignedProducts.includes('orcagraf'),
-        arteflow: currentMember.assignedProducts.includes('arteflow'),
-        artecheck: currentMember.assignedProducts.includes('artecheck'),
+        orcagraf: currentMember.role === 'owner' ? effectiveProducts.includes('orcagraf') : currentMember.assignedProducts.includes('orcagraf'),
+        arteflow: currentMember.role === 'owner' ? effectiveProducts.includes('arteflow') : currentMember.assignedProducts.includes('arteflow'),
+        artecheck: currentMember.role === 'owner' ? effectiveProducts.includes('artecheck') : currentMember.assignedProducts.includes('artecheck'),
       };
 
       const context: PermissionEngineContext = {
@@ -552,6 +603,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         products,
         members,
         invites,
+        effectiveProducts,
+        commercialProducts,
+        homologationProducts,
         isAuthenticated: !!user,
         isLoading,
         isBackendConnected,

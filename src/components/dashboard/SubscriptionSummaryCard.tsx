@@ -14,7 +14,7 @@ interface SubscriptionSummaryCardProps {
 export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = ({
   onViewSubscription
 }) => {
-  const { subscription } = useAuth();
+  const { subscription, homologationProducts } = useAuth();
   const includedProducts = subscription ? subscription.includedProducts.filter((p) => p.includedInPlan) : [];
 
   const getSymbol = (id: string) => {
@@ -27,6 +27,19 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
         return artecheckSymbol;
       default:
         return orcagrafSymbol;
+    }
+  };
+
+  const getProductName = (id: string) => {
+    switch (id) {
+      case 'orcagraf':
+        return 'OrçaGraf';
+      case 'arteflow':
+        return 'ArteFlow';
+      case 'artecheck':
+        return 'ArteCheck';
+      default:
+        return id;
     }
   };
 
@@ -47,13 +60,15 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
         {/* Column 1: Plan & Status */}
         <div>
           <h4 className="text-lg font-bold text-slate-900 tracking-tight">
-            {subscription ? subscription.planName : 'Sem assinatura ativa'}
+            {subscription ? subscription.planName : 'Sem assinatura comercial ativa'}
           </h4>
           <div className="mt-2">
             {subscription ? (
               <Badge status={subscription.status} label={subscription.statusLabel} />
+            ) : homologationProducts.length > 0 ? (
+              <Badge status="homologation" label="Homologação ativa" />
             ) : (
-              <Badge status="inactive" label="Não contratado" />
+              <Badge status="inactive" label="Sem assinatura" />
             )}
           </div>
         </div>
@@ -61,7 +76,7 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
         {/* Column 2: Included Products */}
         <div>
           <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            Produtos incluídos
+            {subscription ? 'Produtos incluídos no plano' : 'Acesso de homologação'}
           </span>
           <div className="flex flex-col space-y-2">
             {includedProducts.length > 0 ? (
@@ -73,6 +88,22 @@ export const SubscriptionSummaryCard: React.FC<SubscriptionSummaryCardProps> = (
                     className="w-5 h-5 object-contain"
                   />
                   <span className="text-xs font-semibold text-slate-800">{prod.name}</span>
+                </div>
+              ))
+            ) : homologationProducts.length > 0 ? (
+              homologationProducts.map((prodId) => (
+                <div key={prodId} className="flex items-center space-x-2">
+                  <img
+                    src={getSymbol(prodId)}
+                    alt={getProductName(prodId)}
+                    className="w-5 h-5 object-contain"
+                  />
+                  <span className="text-xs font-semibold text-slate-800">
+                    {getProductName(prodId)}
+                  </span>
+                  <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                    Homologação
+                  </span>
                 </div>
               ))
             ) : (

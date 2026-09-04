@@ -1,6 +1,6 @@
 export type ProductId = 'orcagraf' | 'arteflow' | 'artecheck';
 
-export type ProductStatus = 'active' | 'trial' | 'inactive' | 'coming_soon' | 'suspended';
+export type ProductStatus = 'active' | 'trial' | 'inactive' | 'coming_soon' | 'suspended' | 'homologation';
 
 export interface ProductTheme {
   primary: string;
@@ -28,6 +28,7 @@ export interface ProductInfo {
   theme: ProductTheme;
   features: string[];
   isSubscribed: boolean;
+  entitlementType?: 'commercial' | 'homologation' | 'none';
 }
 
 export interface UserProductAccess {

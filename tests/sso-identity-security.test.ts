@@ -396,9 +396,9 @@ async function runSsoIdentitySecurityTests() {
     const data = realEnt.rows[0]?.data;
 
     assert(
-      data?.active_members_count === 2 && JSON.stringify(data?.effective_products) === '["orcagraf"]' && data?.has_subscription === false,
-      'Auditoria de Preservação: Organização real permanece com active_members_count=2, effective_products=["orcagraf"] e has_subscription=false',
-      'active_members=2, products=["orcagraf"], has_sub=false',
+      data?.active_members_count === 2 && data?.effective_products?.includes('orcagraf') && data?.effective_products?.includes('arteflow') && data?.has_subscription === false,
+      'Auditoria de Preservação: Organização real permanece com active_members_count=2, effective_products=["arteflow","orcagraf"] e has_subscription=false',
+      'active_members=2, products=["arteflow","orcagraf"], has_sub=false',
       `active_members=${data?.active_members_count}, products=${JSON.stringify(data?.effective_products)}, has_sub=${data?.has_subscription}`
     );
 

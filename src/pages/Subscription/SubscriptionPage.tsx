@@ -29,7 +29,7 @@ interface SubscriptionPageProps {
 }
 
 export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBack }) => {
-  const { organization, user } = useAuth();
+  const { organization, user, homologationProducts } = useAuth();
   const [plans, setPlans] = useState<PrexyonPlan[]>([]);
   const [details, setDetails] = useState<SubscriptionDetails | null>(null);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
@@ -252,14 +252,30 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBack }) =>
 
       {/* No Active Plan State */}
       {!details && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm text-center">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-50 text-[#0066ff] flex items-center justify-center mb-3">
-            <Zap className="w-6 h-6" />
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
+          <div className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-50 text-[#0066ff] flex items-center justify-center mb-3">
+              <Zap className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">Sem assinatura comercial ativa</h2>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+              Sua organização ainda não possui uma assinatura comercial ativa. Escolha um dos planos oficiais abaixo para contratar com faturamento automático.
+            </p>
           </div>
-          <h2 className="text-lg font-bold text-slate-900">Nenhum plano contratado</h2>
-          <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-            Sua organização ainda não possui uma assinatura ativa. Escolha um dos planos oficiais abaixo para liberar o acesso aos softwares.
-          </p>
+
+          {homologationProducts.length > 0 && (
+            <div className="mt-4 p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-amber-950 flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                  Acesso de Homologação Ativo
+                </h4>
+                <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                  Sua organização possui autorização temporária de homologação para os softwares: <strong>{homologationProducts.map((p) => getProductInfo(p).name).join(', ')}</strong>. Este acesso não constitui assinatura comercial nem gera cobranças financeiras.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

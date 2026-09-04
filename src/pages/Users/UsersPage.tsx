@@ -41,7 +41,7 @@ interface UsersPageProps {
 }
 
 export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigateToPermissions: _onNavigateToPermissions }) => {
-  const { organization, subscription, user: currentUser } = useAuth();
+  const { organization, user: currentUser, effectiveProducts } = useAuth();
 
   const [members, setMembers] = useState<MemberDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,12 +74,10 @@ export const UsersPage: React.FC<UsersPageProps> = ({ onBack: _onBack, onNavigat
   const [activeProductTab, setActiveProductTab] = useState<'orcagraf' | 'arteflow' | 'artecheck'>('orcagraf');
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
 
-  // Check if organization has subscription entitlement for a product
+  // Check if organization has entitlement for a product
   const orgHasEntitlement = useCallback((prodId: ProductId) => {
-    if (!subscription) return false;
-    const subProd = subscription.includedProducts.find((p) => p.id === prodId);
-    return subProd ? subProd.includedInPlan : false;
-  }, [subscription]);
+    return (effectiveProducts || []).includes(prodId);
+  }, [effectiveProducts]);
 
   // Load real members
   const fetchMembers = useCallback(async () => {

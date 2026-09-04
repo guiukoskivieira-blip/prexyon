@@ -261,19 +261,19 @@ async function runSsoSeparationEntitlementTests() {
       `session=${Boolean(ownerVerifyData?.session)}, user.id=${ownerVerifyData?.user?.id}`
     );
 
-    // 10.3 Bootstrap ArteFlow para o OWNER: verifica entitlement e identifica ausência de ArteFlow
+    // 10.3 Bootstrap Produto Não Contratado (ex: ArteCheck) para o OWNER: identifica ausência em effective_products
     const ownerEntRes = await client.query(`SELECT public.prexyon_get_organization_entitlements($1) as data;`, [realOrgId]);
-    const ownerHasArteflow = ownerEntRes.rows[0]?.data?.effective_products?.includes('arteflow') || false;
+    const ownerHasArtecheck = ownerEntRes.rows[0]?.data?.effective_products?.includes('artecheck') || false;
 
     assert(
-      ownerHasArteflow === false,
-      'Teste 10.3: Bootstrap do ArteFlow identifica que a organização NÃO possui entitlement para ArteFlow (PRODUCT_NOT_ENTITLED)',
-      'ownerHasArteflow = false',
-      `ownerHasArteflow = ${ownerHasArteflow}`
+      ownerHasArtecheck === false,
+      'Teste 10.3: Bootstrap identifica que a organização NÃO possui entitlement para produto não contratado (PRODUCT_NOT_ENTITLED)',
+      'ownerHasArtecheck = false',
+      `ownerHasArtecheck = ${ownerHasArtecheck}`
     );
 
     // -------------------------------------------------------------
-    // TESTE 11: FLUXO COMPLETO MEMBER -> ARTEFLOW EXCHANGE -> VERIFYOTP -> BOOTSTRAP NEGATIVO
+    // TESTE 11: FLUXO COMPLETO MEMBER -> ARTEFLOW EXCHANGE -> VERIFYOTP -> BOOTSTRAP
     // -------------------------------------------------------------
     const exchMemberRes = await callRemoteExchange({ code: memberArteflowCode, audience: 'arteflow' });
     assert(
@@ -296,13 +296,13 @@ async function runSsoSeparationEntitlementTests() {
     );
 
     const memberEntRes = await client.query(`SELECT public.prexyon_get_organization_entitlements($1) as data;`, [realOrgId]);
-    const memberHasArteflow = memberEntRes.rows[0]?.data?.effective_products?.includes('arteflow') || false;
+    const memberHasArtecheck = memberEntRes.rows[0]?.data?.effective_products?.includes('artecheck') || false;
 
     assert(
-      memberHasArteflow === false,
-      'Teste 11.3: Bootstrap do ArteFlow identifica que o MEMBER NÃO possui entitlement para ArteFlow (PRODUCT_NOT_ENTITLED)',
-      'memberHasArteflow = false',
-      `memberHasArteflow = ${memberHasArteflow}`
+      memberHasArtecheck === false,
+      'Teste 11.3: Bootstrap identifica que o MEMBER NÃO possui entitlement para ArteCheck (PRODUCT_NOT_ENTITLED)',
+      'memberHasArtecheck = false',
+      `memberHasArtecheck = ${memberHasArtecheck}`
     );
 
     // -------------------------------------------------------------
@@ -317,18 +317,26 @@ async function runSsoSeparationEntitlementTests() {
 
     const realArteflowGrants = realPermsRes.rows.filter((r: any) => r.product_key === 'arteflow');
     assert(
-      realArteflowGrants.length === 0,
-      'Teste 12.1: Zero grants do ArteFlow concedidos a membros na base real (Zero Privilege Expansion)',
-      '0 grants',
+      realArteflowGrants.length === 7,
+      'Teste 12.1: Exatamente 7 grants do ArteFlow configuradas para o MEMBER na base real',
+      '7 grants',
       `${realArteflowGrants.length} grants`
     );
 
-    const memberGrants = realPermsRes.rows.filter((r: any) => r.email === memberEmail).map((g: any) => g.permission_key).sort();
+    const memberOrcagrafGrants = realPermsRes.rows.filter((r: any) => r.email === memberEmail && r.product_key === 'orcagraf').map((g: any) => g.permission_key).sort();
     assert(
-      JSON.stringify(memberGrants) === JSON.stringify(['orcagraf.quotes.create', 'orcagraf.quotes.view', 'orcagraf.view']),
+      JSON.stringify(memberOrcagrafGrants) === JSON.stringify(['orcagraf.quotes.create', 'orcagraf.quotes.view', 'orcagraf.view']),
       'Teste 12.2: MEMBER real permanece com exatamente as 3 grants homologadas de OrçaGraf intactas',
       '["orcagraf.quotes.create","orcagraf.quotes.view","orcagraf.view"]',
-      JSON.stringify(memberGrants)
+      JSON.stringify(memberOrcagrafGrants)
+    );
+
+    const subRes = await client.query(`SELECT count(*)::int as count FROM public.prexyon_subscriptions WHERE organization_id = $1;`, [realOrgId]);
+    assert(
+      subRes.rows[0]?.count === 0,
+      'Teste 12.3: Zero assinaturas comerciais na base de produção (has_subscription = false)',
+      'count = 0',
+      `count = ${subRes.rows[0]?.count}`
     );
 
     console.log('================================================================');
