@@ -36,7 +36,8 @@
     "test:sso-separation": "tsx tests/sso-separation-entitlement.test.ts",
     "test:e2e-arteflow-positive": "tsx tests/e2e-arteflow-positive-homologation.ts",
     "test:entitlement-presentation": "tsx tests/entitlement-presentation-and-launch.test.ts",
-    "test:arteflow-url": "tsx tests/arteflow-url-resolution.test.ts"
+    "test:arteflow-url": "tsx tests/arteflow-url-resolution.test.ts",
+    "test:tenant-selection": "tsx tests/tenant-selection-binding.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

@@ -27,6 +27,7 @@ const noOrgState: Organization = {
 interface AuthContextType {
   user: AuthUser | null;
   organization: Organization;
+  availableOrganizations: Organization[];
   subscription: SubscriptionDetails | null;
   products: ProductInfo[];
   members: AccountMember[];
@@ -41,6 +42,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  switchOrganization: (organizationId: string) => Promise<{ success: boolean; error?: string }>;
   updateProductStatus: (productId: ProductId, status: ProductStatus) => void;
   setOrganizationName: (name: string) => Promise<{ success: boolean; error?: string }>;
   updateUserProfile: (fullName: string) => Promise<{ success: boolean; error?: string }>;
@@ -64,6 +66,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [organization, setOrganization] = useState<Organization>(isSupabaseConfigured() ? noOrgState : (isDev ? mockOrganization : noOrgState));
+  const [availableOrganizations, setAvailableOrganizations] = useState<Organization[]>(isSupabaseConfigured() ? [] : (isDev ? [mockOrganization] : []));
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(isSupabaseConfigured() ? null : (isDev ? mockSubscription : null));
   const [products, setProducts] = useState<ProductInfo[]>(mockProducts);
   const [members, setMembers] = useState<AccountMember[]>(isSupabaseConfigured() ? [] : (isDev ? mockMembers : []));
@@ -141,16 +144,95 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, []);
 
-  // Helper para carregar todos os dados reais do usuário autenticado
-  const loadUserData = useCallback(async (userId: string, email: string) => {
+  // Helper para carregar os dados de contexto de uma organização específica
+  const loadOrgContext = useCallback(async (
+    targetOrg: Organization,
+    userId: string,
+    authUser: AuthUser
+  ) => {
+    if (!targetOrg.id) {
+      setSubscription(null);
+      setEffectiveProducts([]);
+      setCommercialProducts([]);
+      setHomologationProducts([]);
+      syncProductsWithAuthorization(null, [], [], [], 'member', null);
+      setMembers([]);
+      return;
+    }
+
     try {
-      const [profile, org] = await Promise.all([
-        userService.getProfile(userId, email),
-        organizationService.getUserOrganization(userId),
+      const [sub, mems, entRes] = await Promise.all([
+        subscriptionService.fetchOrganizationSubscription(targetOrg.id),
+        organizationService.getMembers(targetOrg.id),
+        (supabase.rpc as any)('prexyon_get_organization_entitlements', { p_org_id: targetOrg.id }),
       ]);
 
-      const effectiveOrg = org || noOrgState;
+      const rawEffective: string[] = entRes?.data?.effective_products || [];
+      const rawCommercial: string[] = entRes?.data?.commercial_products || [];
+      const rawHomologation: string[] = entRes?.data?.homologation_products || [];
+
+      const entProducts = rawEffective.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+      const commProducts = rawCommercial.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+      const homologProducts = rawHomologation.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
+
+      setEffectiveProducts(entProducts);
+      setCommercialProducts(commProducts);
+      setHomologationProducts(homologProducts);
+      setSubscription(sub);
+
+      const currentMember = (mems || []).find((m) => m.userId === userId) || null;
+      syncProductsWithAuthorization(sub, commProducts, homologProducts, entProducts, authUser.role, currentMember);
+
+      if (mems && mems.length > 0) {
+        setMembers(mems);
+      } else {
+        setMembers([
+          {
+            id: `mem_${userId}`,
+            userId: userId,
+            name: authUser.name,
+            email: authUser.email,
+            initials: authUser.initials,
+            role: (authUser.role as any) || 'owner',
+            status: 'active',
+            assignedProducts: entProducts,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar contexto da organização:', err);
+      setSubscription(null);
+      setEffectiveProducts([]);
+      setCommercialProducts([]);
+      setHomologationProducts([]);
+      syncProductsWithAuthorization(null, [], [], [], 'member', null);
+    }
+  }, [syncProductsWithAuthorization]);
+
+  // Helper para carregar todos os dados reais do usuário autenticado e suas organizações
+  const loadUserData = useCallback(async (userId: string, email: string, preferredOrgId?: string) => {
+    try {
+      const [profile, orgs] = await Promise.all([
+        userService.getProfile(userId, email),
+        organizationService.getUserOrganizations(userId),
+      ]);
+
+      const validOrgs = Array.isArray(orgs) ? orgs : [];
+      setAvailableOrganizations(validOrgs);
+
+      // Determinar organização ativa respeitando persistência ou primeira válida
+      const savedOrgId = preferredOrgId || (typeof localStorage !== 'undefined' ? localStorage.getItem('prexyon_active_org_id') : null);
+      const matchedOrg = savedOrgId ? validOrgs.find((o) => o.id === savedOrgId) : null;
+      const effectiveOrg = matchedOrg || (validOrgs.length > 0 ? validOrgs[0] : noOrgState);
+
       setOrganization(effectiveOrg);
+
+      if (effectiveOrg.id && typeof localStorage !== 'undefined') {
+        localStorage.setItem('prexyon_active_org_id', effectiveOrg.id);
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('prexyon_active_org_id');
+      }
 
       // Resolução de nome por prioridade: profiles.full_name -> email derivado
       const resolvedFullName = profile.name && profile.name !== email.split('@')[0]
@@ -170,66 +252,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       setUser(authUser);
 
-      if (effectiveOrg.id) {
-        const [sub, mems, entRes] = await Promise.all([
-          subscriptionService.fetchOrganizationSubscription(effectiveOrg.id),
-          organizationService.getMembers(effectiveOrg.id),
-          (supabase.rpc as any)('prexyon_get_organization_entitlements', { p_org_id: effectiveOrg.id }),
-        ]);
-
-        const rawEffective: string[] = entRes?.data?.effective_products || [];
-        const rawCommercial: string[] = entRes?.data?.commercial_products || [];
-        const rawHomologation: string[] = entRes?.data?.homologation_products || [];
-
-        const entProducts = rawEffective.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
-        const commProducts = rawCommercial.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
-        const homologProducts = rawHomologation.filter((p): p is ProductId => ['orcagraf', 'arteflow', 'artecheck'].includes(p));
-
-        setEffectiveProducts(entProducts);
-        setCommercialProducts(commProducts);
-        setHomologationProducts(homologProducts);
-        setSubscription(sub);
-
-        const currentMember = (mems || []).find((m) => m.userId === userId) || null;
-        syncProductsWithAuthorization(sub, commProducts, homologProducts, entProducts, authUser.role, currentMember);
-
-        if (mems && mems.length > 0) {
-          setMembers(mems);
-        } else {
-          // Se ainda não existirem outros membros, cria o registro do próprio usuário
-          setMembers([
-            {
-              id: `mem_${userId}`,
-              userId: userId,
-              name: authUser.name,
-              email: authUser.email,
-              initials: authUser.initials,
-              role: (authUser.role as any) || 'owner',
-              status: 'active',
-              assignedProducts: entProducts,
-              createdAt: new Date().toISOString(),
-            },
-          ]);
-        }
-      } else {
-        // Usuário sem organização: isolamento estrito fail-closed
-        setSubscription(null);
-        setEffectiveProducts([]);
-        setCommercialProducts([]);
-        setHomologationProducts([]);
-        syncProductsWithAuthorization(null, [], [], [], 'member', null);
-        setMembers([]);
-      }
+      await loadOrgContext(effectiveOrg, userId, authUser);
     } catch (err) {
       console.error('Erro ao carregar dados do usuário:', err);
       setOrganization(noOrgState);
+      setAvailableOrganizations([]);
       setSubscription(null);
       setEffectiveProducts([]);
       setCommercialProducts([]);
       setHomologationProducts([]);
       syncProductsWithAuthorization(null, [], [], [], 'member', null);
     }
-  }, [syncProductsWithAuthorization]);
+  }, [loadOrgContext, syncProductsWithAuthorization]);
+
+  // Função para alternar entre organizações autorizadas
+  const switchOrganization = useCallback(async (orgId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) {
+      return { success: false, error: 'Usuário não autenticado.' };
+    }
+
+    const targetOrg = availableOrganizations.find((o) => o.id === orgId);
+    if (!targetOrg) {
+      return { success: false, error: 'Organização não autorizada para este usuário.' };
+    }
+
+    setOrganization(targetOrg);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('prexyon_active_org_id', targetOrg.id);
+    }
+
+    const updatedUser: AuthUser = {
+      ...user,
+      role: (targetOrg.userRole as any) || 'owner',
+      accountId: targetOrg.id,
+    };
+    setUser(updatedUser);
+
+    await loadOrgContext(targetOrg, user.id, updatedUser);
+    return { success: true };
+  }, [availableOrganizations, loadOrgContext, user]);
 
   // Load session on startup
   useEffect(() => {
@@ -290,13 +351,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setOrganization(noOrgState);
+          setAvailableOrganizations([]);
           setSubscription(null);
           setEffectiveProducts([]);
           setCommercialProducts([]);
           setHomologationProducts([]);
           setMembers([]);
           syncProductsWithAuthorization(null, [], [], [], 'member', null);
-          localStorage.removeItem('prexyon_demo_auth');
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('prexyon_demo_auth');
+            localStorage.removeItem('prexyon_active_org_id');
+          }
         }
       });
 
@@ -376,13 +441,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(null);
     setOrganization(noOrgState);
+    setAvailableOrganizations([]);
     setSubscription(null);
     setEffectiveProducts([]);
     setCommercialProducts([]);
     setHomologationProducts([]);
     setMembers([]);
     syncProductsWithAuthorization(null, [], [], [], 'member', null);
-    localStorage.removeItem('prexyon_demo_auth');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('prexyon_demo_auth');
+      localStorage.removeItem('prexyon_active_org_id');
+    }
     setIsLoading(false);
   };
 
@@ -599,6 +668,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         organization,
+        availableOrganizations,
         subscription,
         products,
         members,
@@ -613,6 +683,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         resetPassword,
+        switchOrganization,
         updateProductStatus,
         setOrganizationName,
         updateUserProfile,

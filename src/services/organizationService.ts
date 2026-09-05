@@ -6,24 +6,50 @@ const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.me
 
 export const organizationService = {
   /**
-   * Busca a organização real associada ao usuário autenticado
+   * Busca todas as organizações ativas e autorizadas associadas ao usuário autenticado
    */
-  async getUserOrganization(userId: string): Promise<Organization | null> {
+  async getUserOrganizations(userId?: string): Promise<Organization[]> {
     if (!isSupabaseConfigured()) {
-      return isDev ? mockOrganization : null;
+      return isDev ? [mockOrganization] : [];
     }
 
     try {
-      // 1. Busca vínculo estrito na tabela organization_members
+      // 1. Tentar via RPC de segurança prexyon_get_my_organizations
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('prexyon_get_my_organizations');
+      if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+        return rpcData.map((row: any) => ({
+          id: row.organization_id,
+          name: row.trade_name || row.corporate_name || row.name || 'Organização',
+          tradeName: row.trade_name || row.corporate_name || row.name || 'Organização',
+          slug: row.slug || undefined,
+          document: row.document || undefined,
+          status: row.is_active ? 'active' : 'suspended',
+          userRole: row.role as any,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }));
+      }
+
+      // 2. Fallback seguro via query direta em organization_members se RPC não retornar dados
+      if (!userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userId = session?.user?.id;
+      }
+
+      if (!userId) return [];
+
       const { data: memberData, error: memberError } = await (supabase.from('organization_members') as any)
         .select(`
           organization_id,
           role,
+          is_active,
+          is_locked,
           organizations:organization_id (
             id,
             trade_name,
             corporate_name,
             document,
+            slug,
             is_active,
             created_at,
             updated_at
@@ -31,28 +57,52 @@ export const organizationService = {
         `)
         .eq('user_id', userId)
         .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
+        .or('is_locked.is.null,is_locked.eq.false')
+        .order('created_at', { ascending: true });
 
-      if (memberError || !memberData || !memberData.organizations) {
-        return null;
+      if (memberError || !memberData || memberData.length === 0) {
+        return [];
       }
 
-      const org = memberData.organizations;
-      return {
-        id: org.id,
-        name: org.trade_name || org.corporate_name || 'Organização',
-        tradeName: org.trade_name || 'Organização',
-        slug: org.slug || undefined,
-        document: org.document || undefined,
-        status: org.is_active ? 'active' : 'suspended',
-        userRole: memberData.role as any,
-        createdAt: org.created_at,
-        updatedAt: org.updated_at,
-      };
+      const validOrgs: Organization[] = [];
+      for (const row of memberData) {
+        const org = row.organizations;
+        if (org && org.is_active) {
+          validOrgs.push({
+            id: org.id,
+            name: org.trade_name || org.corporate_name || 'Organização',
+            tradeName: org.trade_name || org.corporate_name || 'Organização',
+            slug: org.slug || undefined,
+            document: org.document || undefined,
+            status: org.is_active ? 'active' : 'suspended',
+            userRole: row.role as any,
+            createdAt: org.created_at,
+            updatedAt: org.updated_at,
+          });
+        }
+      }
+
+      return validOrgs;
     } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Busca a organização ativa do usuário autenticado, respeitando preferência ou primeira válida
+   */
+  async getUserOrganization(userId: string, preferredOrgId?: string): Promise<Organization | null> {
+    const orgs = await this.getUserOrganizations(userId);
+    if (orgs.length === 0) {
       return null;
     }
+
+    if (preferredOrgId) {
+      const matched = orgs.find((o) => o.id === preferredOrgId);
+      if (matched) return matched;
+    }
+
+    return orgs[0];
   },
 
   async createOrganization(params: {
