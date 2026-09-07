@@ -106,10 +106,16 @@ serve(async (req) => {
     const providerEventId = String(body.id || `ev_${resourceId}_${Date.now()}`);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabasePaymentSecretKey = Deno.env.get('PREXYON_PAYMENT_SUPABASE_SECRET_KEY') ?? '';
     const mpAccessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN') ?? '';
     const mpWebhookSecret = Deno.env.get('MERCADO_PAGO_WEBHOOK_SECRET') ?? '';
+
+    if (!supabaseUrl || !supabasePaymentSecretKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Configuração de infraestrutura Supabase ausente.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 1. AUTENTICAÇÃO CRIPTOGRÁFICA OBRIGATÓRIA (FAIL-CLOSED)
     // Se o segredo estiver presente ou não for mock de teste, exige validação de assinatura válida
@@ -128,7 +134,7 @@ serve(async (req) => {
       );
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
+    const supabaseAdmin = createClient(supabaseUrl, supabasePaymentSecretKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
