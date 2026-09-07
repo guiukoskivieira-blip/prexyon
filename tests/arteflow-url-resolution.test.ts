@@ -9,7 +9,7 @@ if (typeof process.loadEnvFile === 'function') {
 }
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://ybsdwcaagcazfedrwhjm.supabase.co';
-const anonKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlic2R3Y2FhZ2NhemZlZHJ3aGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAzNjYwOTMsImV4cCI6MjA1NTk0MjA5M30.40m4dE4p3gJ_5bY07n94fE-07K_h_C5jC1Z1L_Z5Z5U';
+const anonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlic2R3Y2FhZ2NhemZlZHJ3aGptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAzNjYwOTMsImV4cCI6MjA1NTk0MjA5M30.40m4dE4p3gJ_5bY07n94fE-07K_h_C5jC1Z1L_Z5Z5U';
 const functionUrl = `${supabaseUrl}/functions/v1/prexyon-sso-exchange`;
 
 const realOrgId = '43c47a08-2f84-42db-a64d-d1f0ea0c6a6b';

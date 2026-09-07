@@ -58,8 +58,7 @@ Entitlements liberados imediatamente no Portal Prexyon e via SSO no OrçaGraf
 ### Variáveis Públicas (Frontend)
 ```env
 VITE_SUPABASE_URL=https://<ref>.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... # (Chave pública recomendada)
-# VITE_SUPABASE_ANON_KEY=eyJhbGciOi... # (Fallback temporário para chave Anon legada)
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... # (Chave pública padrão Prexyon)
 VITE_PREXYON_PORTAL_URL=https://prexyon-production.up.railway.app # (ou domínio customizado futuro)
 ```
 

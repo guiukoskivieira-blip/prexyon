@@ -23,15 +23,13 @@ const getEnvVar = (name: string): string => {
 
 const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
 const supabasePublishableKey = getEnvVar('VITE_SUPABASE_PUBLISHABLE_KEY');
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
-const supabasePublicKey = supabasePublishableKey || supabaseAnonKey;
 
 export const isSupabaseConfigured = (): boolean => {
   return Boolean(
     supabaseUrl &&
-    supabasePublicKey &&
+    supabasePublishableKey &&
     supabaseUrl.trim() !== '' &&
-    supabasePublicKey.trim() !== '' &&
+    supabasePublishableKey.trim() !== '' &&
     !supabaseUrl.includes('placeholder')
   );
 };
@@ -46,7 +44,7 @@ const getStorage = () => {
 
 export const supabase: SupabaseClient<Database> = createClient<Database>(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabasePublicKey || 'placeholder-key',
+  supabasePublishableKey || 'placeholder-key',
   {
     auth: {
       autoRefreshToken: true,
