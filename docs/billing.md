@@ -64,7 +64,7 @@ VITE_PREXYON_PORTAL_URL=https://prexyon-production.up.railway.app # (ou domínio
 
 ### Variáveis Secretas (Edge Functions / Supabase Secrets)
 ```env
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+PREXYON_PAYMENT_SUPABASE_SECRET_KEY=sb_secret_...
 MERCADO_PAGO_ACCESS_TOKEN=TEST-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx # (ou APP_USR- em prod)
 MERCADO_PAGO_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 PORTAL_URL=https://prexyon-production.up.railway.app # (ou domínio customizado futuro)

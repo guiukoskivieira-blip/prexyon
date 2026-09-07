@@ -53,11 +53,18 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabasePaymentSecretKey = Deno.env.get('PREXYON_PAYMENT_SUPABASE_SECRET_KEY') ?? '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     const mpAccessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN') ?? '';
     const billingProdEnabled = Deno.env.get('BILLING_PRODUCTION_ENABLED') === 'true';
     const allowedTestOrgs = (Deno.env.get('BILLING_ALLOWED_ORGS') || '').split(',').map((s) => s.trim());
+
+    if (!supabaseUrl || !supabasePaymentSecretKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Configuração de infraestrutura Supabase ausente.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 1. Validar Feature Flag de Produção / Homologação Controlada
     if (!billingProdEnabled && !allowedTestOrgs.includes(organization_id)) {
@@ -86,8 +93,8 @@ serve(async (req) => {
       );
     }
 
-    // Cliente com Service Role para validação administrativa e operações atômicas
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
+    // Cliente com Secret Key para validação administrativa e operações atômicas
+    const supabaseAdmin = createClient(supabaseUrl, supabasePaymentSecretKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

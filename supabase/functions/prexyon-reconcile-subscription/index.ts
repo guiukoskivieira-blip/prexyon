@@ -30,9 +30,16 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabasePaymentSecretKey = Deno.env.get('PREXYON_PAYMENT_SUPABASE_SECRET_KEY') ?? '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     const mpAccessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN') ?? '';
+
+    if (!supabaseUrl || !supabasePaymentSecretKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Configuração de infraestrutura Supabase ausente.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -46,7 +53,7 @@ serve(async (req) => {
       );
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
+    const supabaseAdmin = createClient(supabaseUrl, supabasePaymentSecretKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
