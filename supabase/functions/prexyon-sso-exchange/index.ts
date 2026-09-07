@@ -87,19 +87,19 @@ serve(async (req) => {
     const cleanAudience = audience.trim();
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseSecretKey = Deno.env.get('PREXYON_SUPABASE_SECRET_KEY') ?? '';
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseSecretKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Configuração de infraestrutura Supabase ausente.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Cliente Admin com Service Role executando estritamente server-side
+    // Cliente Admin com Secret Key executando estritamente server-side
     const supabaseAdmin = createClient(
       supabaseUrl,
-      supabaseServiceKey,
+      supabaseSecretKey,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
