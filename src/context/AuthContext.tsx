@@ -40,6 +40,7 @@ interface AuthContextType {
   isBackendConnected: boolean;
   authError: string | null;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
+  signUp: (params: { name: string; email: string; password: string }) => Promise<{ success: boolean; error?: string; session?: any }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   switchOrganization: (organizationId: string) => Promise<{ success: boolean; error?: string }>;
@@ -430,6 +431,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
+  // New signUp method
+  const signUp = async (params: { name: string; email: string; password: string }): Promise<{ success: boolean; error?: string; session?: any }> => {
+    setIsLoading(true);
+    setAuthError(null);
+
+    if (!params.email) {
+      setIsLoading(false);
+      return { success: false, error: 'Por favor, informe seu e-mail.' };
+    }
+    if (!params.password) {
+      setIsLoading(false);
+      return { success: false, error: 'Por favor, informe sua senha.' };
+    }
+    if (!params.name) {
+      setIsLoading(false);
+      return { success: false, error: 'Por favor, informe seu nome.' };
+    }
+
+    if (isBackendConnected) {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: params.email,
+          password: params.password,
+          options: { data: { full_name: params.name } },
+        });
+        setIsLoading(false);
+        if (error) {
+          return { success: false, error: error.message };
+        }
+        // If a session is returned (email confirmation disabled)
+        if (data && (data as any).session) {
+          await loadUserData((data as any).user.id, (data as any).user.email);
+          return { success: true, session: (data as any).session };
+        }
+        return { success: true };
+      } catch (err: any) {
+        setIsLoading(false);
+        return { success: false, error: err.message };
+      }
+    }
+
+    // Dev fallback (no backend)
+    if (isDev) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const simulatedUser: AuthUser = {
+        ...mockUser,
+        email: params.email,
+        name: params.name,
+        firstName: params.name.split(' ')[0] || mockUser.firstName,
+      };
+      setUser(simulatedUser);
+      localStorage.setItem('prexyon_demo_auth', 'true');
+      setIsLoading(false);
+      return { success: true };
+    }
+
+    setIsLoading(false);
+    const errorMsg = 'Serviço de cadastro não configurado em produção.';
+    setAuthError(errorMsg);
+    return { success: false, error: errorMsg };
+  };
+
   const logout = async () => {
     setIsLoading(true);
     if (isBackendConnected) {
@@ -680,7 +743,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isBackendConnected,
         authError,
-        login,
+                login,
+        signUp,
         logout,
         resetPassword,
         switchOrganization,

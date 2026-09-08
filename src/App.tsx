@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/Login/LoginPage';
+import { RegisterPage } from './pages/Register/RegisterPage';
 import { OnboardingPage } from './pages/Onboarding/OnboardingPage';
 import { AcceptInvitePage } from './pages/Invite/AcceptInvitePage';
 import { PortalLayout } from './components/layout/PortalLayout';
@@ -22,6 +23,7 @@ const AppContent: React.FC = () => {
     const path = window.location.pathname;
     if (path === '/onboarding') return '/onboarding';
     if (path === '/app/convite') return '/app/convite';
+    if (path === '/register') return '/register';
     return path.startsWith('/app') ? path : '/app';
   });
 
@@ -71,6 +73,9 @@ const AppContent: React.FC = () => {
 
   // 2. Unauthenticated: Render Login com preservação do convite
   if (!isAuthenticated) {
+    if (currentRoute === '/register') {
+      return <RegisterPage />;
+    }
     return (
       <LoginPage
         hasPendingInvite={Boolean(activeInviteToken)}
@@ -81,6 +86,7 @@ const AppContent: React.FC = () => {
             navigate('/app');
           }
         }}
+        onRegisterClick={() => navigate('/register')}
       />
     );
   }

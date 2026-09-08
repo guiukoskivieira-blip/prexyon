@@ -10,9 +10,10 @@ import { useAuth } from '../../context/AuthContext';
 interface LoginPageProps {
   onLoginSuccess?: () => void;
   hasPendingInvite?: boolean;
+  onRegisterClick?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, hasPendingInvite }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, hasPendingInvite, onRegisterClick }) => {
   const { resetPassword } = useAuth();
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -68,6 +69,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, hasPending
             onForgotPasswordClick={() => setIsForgotModalOpen(true)}
             onContactClick={() => setIsContactModalOpen(true)}
           />
+          <div className="mt-4 text-center text-xs">
+            Ainda não tem conta?{' '}
+            <button type="button" onClick={onRegisterClick} className="font-semibold text-[#0066ff] hover:underline">
+              Criar conta
+            </button>
+          </div>
         </div>
       </div>
 
