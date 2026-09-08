@@ -39,10 +39,12 @@ interface AuthContextType {
   isLoading: boolean;
   isBackendConnected: boolean;
   authError: string | null;
+  isPasswordRecovery: boolean;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   signUp: (params: { name: string; email: string; password: string }) => Promise<{ success: boolean; error?: string; session?: any }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
   switchOrganization: (organizationId: string) => Promise<{ success: boolean; error?: string }>;
   updateProductStatus: (productId: ProductId, status: ProductStatus) => void;
   setOrganizationName: (name: string) => Promise<{ success: boolean; error?: string }>;
@@ -78,6 +80,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [effectiveProducts, setEffectiveProducts] = useState<ProductId[]>([]);
   const [commercialProducts, setCommercialProducts] = useState<ProductId[]>([]);
   const [homologationProducts, setHomologationProducts] = useState<ProductId[]>([]);
+  // Recovery mode: true only when Supabase fires PASSWORD_RECOVERY event
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(false);
 
   // Helper para sincronizar status dos produtos separando estado comercial de autorização
   const syncProductsWithAuthorization = useCallback((
@@ -346,10 +350,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (!mounted) return;
 
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (event === 'PASSWORD_RECOVERY') {
+          // Supabase has established a recovery session — show new-password UI.
+          // Do NOT log session or tokens.
+          setIsPasswordRecovery(true);
+          setIsLoading(false);
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          setIsPasswordRecovery(false);
           await loadUserData(session.user.id, session.user.email || '');
           localStorage.setItem('prexyon_demo_auth', 'true');
         } else if (event === 'SIGNED_OUT') {
+          setIsPasswordRecovery(false);
           setUser(null);
           setOrganization(noOrgState);
           setAvailableOrganizations([]);
@@ -539,6 +550,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await new Promise((resolve) => setTimeout(resolve, 400));
     return { success: true };
+  };
+
+  const updatePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    if (!newPassword) return { success: false, error: 'Informe a nova senha.' };
+    if (isBackendConnected) {
+      try {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) return { success: false, error: error.message };
+        // Clear recovery state after successful update
+        setIsPasswordRecovery(false);
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    }
+    if (isDev) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      setIsPasswordRecovery(false);
+      return { success: true };
+    }
+    return { success: false, error: 'Serviço de atualização de senha indisponível.' };
   };
 
   const updateProductStatus = (productId: ProductId, status: ProductStatus) => {
@@ -743,10 +775,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isBackendConnected,
         authError,
-                login,
+        isPasswordRecovery,
+        login,
         signUp,
         logout,
         resetPassword,
+        updatePassword,
         switchOrganization,
         updateProductStatus,
         setOrganizationName,

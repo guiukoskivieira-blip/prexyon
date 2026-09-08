@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/Login/LoginPage';
 import { RegisterPage } from './pages/Register/RegisterPage';
+import { PasswordRecoveryPage } from './pages/Login/PasswordRecoveryPage';
 import { OnboardingPage } from './pages/Onboarding/OnboardingPage';
 import { AcceptInvitePage } from './pages/Invite/AcceptInvitePage';
 import { PortalLayout } from './components/layout/PortalLayout';
@@ -16,7 +17,7 @@ import { PrexyonLogo } from './components/ui/PrexyonLogo';
 import { canAccessRoute } from './security/routeAuthorization';
 
 const AppContent: React.FC = () => {
-  const { user, isAuthenticated, isLoading, organization, refreshUserData } = useAuth();
+  const { user, isAuthenticated, isLoading, organization, refreshUserData, isPasswordRecovery } = useAuth();
 
   // Preservação de rota e token de convite em memória
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
@@ -64,6 +65,13 @@ const AppContent: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  // 1b. PASSWORD_RECOVERY: Supabase fired event — show new-password UI.
+  // This check MUST come before isAuthenticated logic.
+  // Query param ?recovery=true alone does NOT trigger this; only a real Supabase event does.
+  if (isPasswordRecovery) {
+    return <PasswordRecoveryPage />;
   }
 
   // Identificação segura de convite ativo (via query param ou rota)
