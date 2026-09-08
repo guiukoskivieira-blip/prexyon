@@ -1,27 +1,34 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Bell, Lock, Key, Check } from 'lucide-react';
+import { ArrowLeft, Bell, Lock, Key, Check, AlertCircle, Mail } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+import { useAuth } from '../../context/AuthContext';
 
 interface SettingsPageProps {
   onBack: () => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { user, resetPassword } = useAuth();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
-  const handlePasswordChange = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword && newPassword === confirmPassword) {
-      setSavedSuccess(true);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setTimeout(() => setSavedSuccess(false), 3000);
+  const handleSendResetLink = async () => {
+    if (isSending) return; // prevent double submission
+    const email = user?.email;
+    if (!email) {
+      setResetError('Não foi possível identificar o e-mail da conta.');
+      return;
+    }
+    setIsSending(true);
+    setResetError(null);
+    const result = await resetPassword(email);
+    setIsSending(false);
+    if (result.success) {
+      setResetSent(true);
+    } else {
+      setResetError(result.error || 'Não foi possível enviar o link. Tente novamente.');
     }
   };
 
@@ -38,7 +45,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Configurações & Segurança
+            Configurações &amp; Segurança
           </h1>
           <p className="text-sm text-slate-500">
             Preferências de segurança da conta, autenticação em duas etapas e notificações.
@@ -49,7 +56,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Security Settings */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Password Update Card */}
+
+          {/* Password Reset Card */}
           <div className="bg-white rounded-3xl border border-[#e2e8f0] p-6 sm:p-8 shadow-sm">
             <div className="flex items-center space-x-3 pb-4 border-b border-slate-100 mb-6">
               <div className="p-2 rounded-xl bg-blue-50 text-[#0066ff]">
@@ -57,51 +65,61 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Alterar Senha de Acesso</h2>
-                <p className="text-xs text-slate-500">Mantenha sua senha forte com letras, números e símbolos</p>
+                <p className="text-xs text-slate-500">Enviaremos um link seguro para o seu e-mail cadastrado</p>
               </div>
             </div>
 
-            {savedSuccess && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2">
-                <Check className="w-4 h-4" /> Senha atualizada com sucesso!
+            {resetSent ? (
+              <div className="flex flex-col items-center text-center space-y-3 py-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+                <p className="text-sm font-semibold text-slate-800">
+                  Link enviado para{' '}
+                  <span className="text-[#0066ff]">{user?.email}</span>
+                </p>
+                <p className="text-xs text-slate-500 max-w-xs">
+                  Verifique sua caixa de entrada e siga as instruções para definir uma nova senha.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setResetSent(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline mt-2"
+                >
+                  Reenviar link
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Para sua segurança, enviaremos um link para o e-mail cadastrado na sua conta.
+                  Pelo link, você poderá definir uma nova senha.
+                </p>
+
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700">
+                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="font-medium">{user?.email ?? '—'}</span>
+                </div>
+
+                {resetError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{resetError}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    isLoading={isSending}
+                    onClick={handleSendResetLink}
+                  >
+                    Enviar link para alterar senha
+                  </Button>
+                </div>
               </div>
             )}
-
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              <Input
-                label="Senha Atual"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="••••••••••••"
-                required
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Nova Senha"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  required
-                />
-                <Input
-                  label="Confirmar Nova Senha"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <Button type="submit" variant="primary">
-                  Atualizar Senha
-                </Button>
-              </div>
-            </form>
           </div>
 
           {/* Two-Factor Authentication Card */}
@@ -132,6 +150,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
               </label>
             </div>
           </div>
+
         </div>
 
         {/* Right Col: Notification Preferences */}
